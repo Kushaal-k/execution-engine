@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { Editor } from "@monaco-editor/react"
+import MonacoEditor from "./MonacoEditor"
 
 type executionResponse =  {
     stdout: string,
@@ -16,7 +16,7 @@ type Input = {
 }
 
 function InputCode() {
-    const [code, setCode] = useState<string>('');
+    const [code, setCode] = useState<string>('console.log("Hello World")');
     const [language, setLanguage] = useState<string>('Javascript');
     const [loading, setLoading] = useState<boolean>(false);
     const [stdin, setStdin] = useState<string>('');
@@ -55,37 +55,11 @@ function InputCode() {
     }
 
     return (
-        <div className="flex items-center justify-center flex-col">
-            {/* <textarea className="
-                w-full
-                rounded-xl
-                border
-                border-gray-200
-                bg-white
-                px-4
-                py-3
-                text-gray-900
-                placeholder:text-gray-400
-                shadow-sm
-                focus:border-blue-500
-                focus:ring-2
-                focus:ring-blue-500/20
-                focus:outline-none
-                transition" 
-                placeholder="Input your code"
-                value={code}
-                onChange={(e) => setCode(e.target.value)}
-            /> */}
-            <Editor
-                height="90vh"
-                defaultLanguage={language}
-                defaultValue="Coding is LOVE"
-                value={code}
-                onChange={(value => setCode(value || ""))}
-            />
-            <input type="text" className="w-full h-8 rounded-lg border border-gray-400 my-6 px-4 py-4" placeholder="Input for your code" value={stdin} onChange={(e) => setStdin(e.target.value)}/>
-            <select value={language} onChange={(e) => setLanguage(e.target.value)} className="border border-gray-400 rounded-lg px-4 py-2 my-2">
-                <option className="rounded">Javascript</option>
+        <div className="flex items-center justify-center flex-col p-10 bg-gray-700">
+            <MonacoEditor code={code} setCode={setCode} language={language}/>
+            <textarea className="w-full h-10 rounded-lg border border-gray-500 my-6 px-4 py-2 text-gray-300 placeholder:text-gray-300" placeholder="Input for your code" value={stdin} onChange={(e) => setStdin(e.target.value)}/>
+            <select value={language} onChange={(e) => setLanguage(e.target.value)} className="border border-gray-400 rounded-lg px-4 py-2 my-2 selection:">
+                <option>Javascript</option>
                 <option>Python</option>
                 <option>C++</option>
             </select>
@@ -96,7 +70,7 @@ function InputCode() {
             >
                 {loading ? "Running..." : "Run Code"}</button>
             {response?.error.trim() && <div className="w-full border border-red-800 bg-red-400 flex justify-center items-center py-4 px-10 my-2 rounded-xl">{response?.error}</div>}
-            <div className="w-full rounded-xl border border-gray-200 px-4 py-3">
+            <div className="w-full rounded-xl border border-gray-500 h-10 px-4 py-2 text-gray-300">
                 {response?.stdout}
             </div>
         </div>
