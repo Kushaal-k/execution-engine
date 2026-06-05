@@ -6,6 +6,7 @@ import { once } from "node:events";
 import { promises as fs } from "node:fs";
 import crypto from "node:crypto";
 import { hrtime } from "node:process";
+import { Redis } from "ioredis"
 
 const app = express();
 
@@ -14,8 +15,10 @@ app.use(cors())
 
 const options = {
     cwd: "/home/kushaal/projects/Execution-Engine/backend/temp",
-    timeout: 100000,
+    timeout: 10000,
 }
+
+// const redis = new Redis(process.env.REDIS_URL || "redis://localhost:6379");
 
 interface IInputCodeRequest {
     code: string,
@@ -118,7 +121,6 @@ app.post('/api/response', async (req: Request<{}, {}, IInputCodeRequest>, res: R
     finally {
         try {
             await fs.unlink(`${options.cwd}/${fileName}`);
-            console.log("File deleted successfully!")
         } catch (error) {
             console.error("Failed to delete temp file: ", error)
         }
