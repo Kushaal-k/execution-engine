@@ -7,6 +7,12 @@ import { promises as fs } from "node:fs";
 import crypto from "node:crypto";
 import { hrtime } from "node:process";
 import { Redis } from "ioredis"
+import connectDB from "./db/config.js";
+import dotenv from "dotenv"
+
+dotenv.config()
+
+connectDB();
 
 const app = express();
 
@@ -18,7 +24,9 @@ const options = {
     timeout: 10000,
 }
 
-// const redis = new Redis(process.env.REDIS_URL || "redis://localhost:6379");
+const redis = new Redis(process.env.REDIS_URL || "redis://localhost:6379");
+
+const QUEUE_KEY = 'queue:jobs'
 
 interface IInputCodeRequest {
     code: string,
