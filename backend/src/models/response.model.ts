@@ -38,4 +38,4 @@ const responseSchema = new mongoose.Schema({
     }
 )
 
-export const Response = mongoose.model("Response", responseSchema);
+export const ResponseModel = mongoose.model("Response", responseSchema);
