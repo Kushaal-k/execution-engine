@@ -14,7 +14,9 @@ const options = {
 
 
 while(true) {
-    const job_id = await redis.rpop("queue:pending", 0);
+    const result = await redis.brpop("jobs:pending", 0);
+    if(!result) continue;
+    const job_id = JSON.parse(result[1]);
 
     const job = await ResponseModel.findById(job_id);
 
@@ -22,7 +24,7 @@ while(true) {
         throw new Error("Job not found!!");
     }
 
-    job.updateOne(
+    await job.updateOne(
         {_id: job_id},
         {$set: {status: "Running"}}
     )
@@ -93,7 +95,7 @@ while(true) {
         
         const end = hrtime.bigint();
 
-        job.updateOne(
+        await job.updateOne(
             {_id: job_id},
             {$set: {
                 status: "Completed",

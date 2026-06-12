@@ -8,14 +8,11 @@ import type { IExecutionResponse, IInputCodeRequest } from "./types/types.js"
 import {ResponseModel} from "./models/response.model.js"
 
 dotenv.config()
-
 connectDB();
 
 const app = express();
-
 app.use(express.json());
 app.use(cors())
-
 
 export const redis = new Redis(process.env.REDIS_URL || "redis://localhost:6379");
 
@@ -38,9 +35,9 @@ app.post('/api/response', async (req: Request<{}, {}, IInputCodeRequest>, res: R
             JSON.stringify({id: job_id})
         )  
 
-        return res.status(200).json({ message: `${job.status}`, jobId: job_id})
+        return res.status(200).json({ "status": `${job.status}`, jobId: job_id })
     } catch (error) {
-        return res.status(500).json({ message:  "Failed to run code. Please try again."})
+        return res.status(500).json({ "status":  "Failed"})
     }
 
     
@@ -88,7 +85,18 @@ app.get("/api/response/:id", async (req: Request, res: Response<IExecutionRespon
 
         
     } catch (error) {
-        
+        if(error instanceof Error){
+            res
+            .status(500)
+            .json({
+                status: "Failed",
+                stdout: "",
+                error: error.message,
+                executionTime: 0,
+                memoryUsed: 0,
+                exitCode: 1
+            })
+        }
     }
 })
 

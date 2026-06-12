@@ -1,7 +1,10 @@
 import { useState } from "react";
 import MonacoEditor from "./MonacoEditor"
 
+type Status = "Queued" | "Pending" | "Completed" | "Failed";
+
 type executionResponse =  {
+    status: Status
     stdout: string,
     error: string,
     executionTime: number,
@@ -21,6 +24,9 @@ function InputCode() {
     const [loading, setLoading] = useState<boolean>(false);
     const [stdin, setStdin] = useState<string>('');
     const [response, setResponse] = useState<executionResponse | null>(null);
+    const [jobId, setJobId] = useState<string>("");
+    const [status, setStatus] = useState<Status>("Completed");
+    const [error, setError] = useState<string>("");
 
     const handleSubmit = async () => {
         if(code.trim()){
@@ -41,16 +47,57 @@ function InputCode() {
                 });
 
                 if(!response.ok) {
-                    throw new Error("Error while sending HTTP request")
+                    
                 }
                 
-                const data:executionResponse = await response.json();
-                setResponse(data);
-                setLoading(false);
+                const data = await response.json();
+                setJobId(data.jobId);
+                setStatus(data.status);
+                jobPolling(data.jobId);
             }       
             catch (error) {
                 console.error("Failed to send code: ", error);
             }
+
+            
+        }
+    }
+
+    async function jobPolling(jobId: string) {
+        const url = `http://localhost:3000/api/response/${jobId}`;
+
+        try {
+            const response = await fetch(url);
+            const data: executionResponse = await response.json();
+
+            if(data.status == "Completed"){
+                setStatus("Completed")
+                setResponse({
+                    status: data.status,
+                    stdout: data.stdout,
+                    error: data.error,
+                    executionTime: data.executionTime,
+                    memoryUsed: data.memoryUsed,
+                    exitCode: data.exitCode,
+                })
+
+                return;
+            }
+
+            setTimeout(() => jobPolling(jobId), 2000);
+        } 
+        catch (error) {
+            if(error instanceof Error){
+                setResponse({
+                    status: "Failed",
+                    stdout: "",
+                    error: `Polling Failed, ${error.message}`,
+                    executionTime: 0,
+                    memoryUsed: 0,
+                    exitCode: 1,
+                })
+            }
+            
         }
     }
 
@@ -68,7 +115,7 @@ function InputCode() {
                 onClick={handleSubmit} 
                 disabled={loading}
             >
-                {loading ? "Running..." : "Run Code"}</button>
+                {status!= "Failed" ? `${status as string}` : "Run Code"}</button>
             {response?.error.trim() && <div className="w-full border border-red-800 bg-red-400 flex justify-center items-center py-4 px-10 my-2 rounded-xl">{response?.error}</div>}
             <div className="w-full rounded-xl border border-gray-500 h-10 px-4 py-2 text-gray-300">
                 {response?.stdout}
