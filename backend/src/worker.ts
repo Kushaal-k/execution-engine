@@ -3,9 +3,13 @@ import { once } from "node:events";
 import { promises as fs } from "node:fs";
 import crypto from "node:crypto";
 import { hrtime } from "node:process";
-import { redis } from "./server.js";
+import redis from "./redis.js";
+import connectDB from "./db/config.js";
+import dotenv from "dotenv";
 import { ResponseModel } from "./models/response.model.js";
-import type { ModelSchema } from "./types/types.js";
+
+dotenv.config();
+await connectDB();
 
 const options = {
     cwd: "/home/kushaal/projects/Execution-Engine/backend/temp",
@@ -13,20 +17,21 @@ const options = {
 }
 
 
-while(true) {
+while (true) {
     const result = await redis.brpop("jobs:pending", 0);
-    if(!result) continue;
-    const job_id = JSON.parse(result[1]);
+    if (!result) continue;
+    const job_id = JSON.parse(result[1]).id;
+
+    console.log(job_id);
 
     const job = await ResponseModel.findById(job_id);
 
-    if(!job) {
+    if (!job) {
         throw new Error("Job not found!!");
     }
 
     await job.updateOne(
-        {_id: job_id},
-        {$set: {status: "Running"}}
+        { $set: { status: "Running" } }
     )
 
     const id = crypto.randomUUID();
@@ -37,25 +42,25 @@ while(true) {
     const code = job.code;
     const language = job.language;
     const stdin = job.stdin
-    
-    if(language.toLowerCase() === "javascript") {
+
+    if (language.toLowerCase() === "javascript") {
         fileName += ".js";
         runCommand = "node"
     }
-    else if(language.toLowerCase() === "python"){
+    else if (language.toLowerCase() === "python") {
         fileName += ".py"
         runCommand = "python3"
     }
-    else if(language.toLowerCase() === "c++"){
+    else if (language.toLowerCase() === "c++") {
         fileName += ".cpp"
         runCommand = ""
     }
 
     const MAX_BYTES = 10 * 1024 * 1024;
-    
+
     try {
         await fs.writeFile(`${options.cwd}/${fileName}`, code)
-        
+
         const child = spawn(`${runCommand}`, [`${options.cwd}/${fileName}`], options);
         const start = hrtime.bigint();
 
@@ -65,7 +70,7 @@ while(true) {
 
         let killByMemoryLimit = false;
 
-        if(stdin)
+        if (stdin)
             child.stdin.write(stdin);
 
         child.stdin.end();
@@ -73,7 +78,7 @@ while(true) {
         child.stdout.on("data", data => {
             totalBytes += data.length;
 
-            if(totalBytes > MAX_BYTES){
+            if (totalBytes > MAX_BYTES) {
                 child.kill('SIGTERM')
                 stderr = "Ouput Limit Exceeded!!";
                 killByMemoryLimit = true;
@@ -89,35 +94,37 @@ while(true) {
 
         const [exitCode, signal] = await once(child, 'close');
 
-        if(signal  == 'SIGTERM' && !killByMemoryLimit) {
+        if (signal == 'SIGTERM' && !killByMemoryLimit) {
             stderr ||= "Time Limit Exceeded!"
         }
-        
+
         const end = hrtime.bigint();
 
         await job.updateOne(
-            {_id: job_id},
-            {$set: {
-                status: "Completed",
-                stdout: stdout,
-                error: stderr,
-                executionTime: Number(end-start) / 1_000_000,
-                memoryUsed: 0,
-                exitCode: exitCode
-            }}
+            {
+                $set: {
+                    status: "Completed",
+                    stdout: stdout,
+                    error: stderr,
+                    executionTime: Number(end - start) / 1_000_000,
+                    memoryUsed: 0,
+                    exitCode: exitCode
+                }
+            }
         )
 
-    } 
+    }
     catch (error) {
-        job.updateOne(
-            {_id: job_id},
-            {$set: {
-                status: "Failed",
-                error: error,
-                executionTime: 0,
-                memoryUsed: 0,
-                exitCode: 1
-            }}
+        await job.updateOne(
+            {
+                $set: {
+                    status: "Failed",
+                    error: error,
+                    executionTime: 0,
+                    memoryUsed: 0,
+                    exitCode: 1
+                }
+            }
         )
     }
     finally {

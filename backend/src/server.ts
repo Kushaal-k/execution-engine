@@ -1,9 +1,9 @@
 import express from "express";
 import type { Request, Response } from "express";
 import cors from "cors";
-import { Redis } from "ioredis"
 import connectDB from "./db/config.js";
-import dotenv from "dotenv"
+import dotenv from "dotenv";
+import redis from "./redis.js";
 import type { IExecutionResponse, IInputCodeRequest } from "./types/types.js"
 import {ResponseModel} from "./models/response.model.js"
 
@@ -13,8 +13,6 @@ connectDB();
 const app = express();
 app.use(express.json());
 app.use(cors())
-
-export const redis = new Redis(process.env.REDIS_URL || "redis://localhost:6379");
 
 const QUEUE_KEY = 'jobs:pending'
 

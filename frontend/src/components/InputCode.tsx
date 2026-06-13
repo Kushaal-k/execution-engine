@@ -47,7 +47,8 @@ function InputCode() {
                 });
 
                 if(!response.ok) {
-                    
+                    setError("Failed to send code");
+                    return;
                 }
                 
                 const data = await response.json();
@@ -56,10 +57,11 @@ function InputCode() {
                 jobPolling(data.jobId);
             }       
             catch (error) {
+                setError("Failed to send code");
                 console.error("Failed to send code: ", error);
             }
 
-            
+            setLoading(false);
         }
     }
 
@@ -115,8 +117,8 @@ function InputCode() {
                 onClick={handleSubmit} 
                 disabled={loading}
             >
-                {status!= "Failed" ? `${status as string}` : "Run Code"}</button>
-            {response?.error.trim() && <div className="w-full border border-red-800 bg-red-400 flex justify-center items-center py-4 px-10 my-2 rounded-xl">{response?.error}</div>}
+                {status!= "Completed" ? `${status as string}` : "Run Code"}</button>
+            {response?.error.trim() && <div className="w-full border border-red-800 bg-red-400 flex justify-center items-center py-4 px-10 my-2 rounded-xl">{response?.error || error}</div>}
             <div className="w-full rounded-xl border border-gray-500 h-10 px-4 py-2 text-gray-300">
                 {response?.stdout}
             </div>
