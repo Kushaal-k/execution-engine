@@ -1,0 +1,95 @@
+name: Issue Management
+on:
+  issues:
+    types: [opened]
+  issue_comment:
+    types: [created]
+
+jobs:
+  triage:
+    if: github.event_name == 'issues' && github.event.action == 'opened'
+    runs-on: ubuntu-latest
+    permissions:
+      issues: write
+    steps:
+      - name: Auto-label and welcome
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const issueUser = context.payload.issue.user.login;
+            const owner = context.repo.owner;
+            const repo = context.repo.repo;
+            const issueNumber = context.payload.issue.number;
+            
+            if (issueUser !== owner) {
+              await github.rest.issues.addLabels({
+                owner, repo, issue_number: issueNumber,
+                labels: ['need approval']
+              });
+              
+              await github.rest.issues.createComment({
+                owner, repo, issue_number: issueNumber,
+                body: 'thanks for opening issue - You can work on it once it gets approved by maintainers.'
+              });
+            }
+
+  claim:
+    if: github.event_name == 'issue_comment' && github.event.action == 'created' && startsWith(github.event.comment.body, '/claim') && !github.event.issue.pull_request
+    runs-on: ubuntu-latest
+    permissions:
+      issues: write
+    steps:
+      - name: Process Claim
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const issue = context.payload.issue;
+            const commentUser = context.payload.comment.user.login;
+            const owner = context.repo.owner;
+            const repo = context.repo.repo;
+            const issueNumber = issue.number;
+            
+            // Check if already assigned
+            if (issue.assignees && issue.assignees.length > 0) {
+              await github.rest.issues.createComment({
+                owner, repo, issue_number: issueNumber,
+                body: `@${commentUser} This issue is already assigned to someone.`
+              });
+              return;
+            }
+
+            // Check if claimable (created by owner OR doesn't have "need approval")
+            const isCreatedByOwner = (issue.user.login === owner);
+            const hasNeedApproval = issue.labels.some(label => label.name === 'need approval');
+            
+            if (!isCreatedByOwner && hasNeedApproval) {
+              // Ignore silently based on user feedback
+              console.log("Issue needs approval, ignoring claim silently.");
+              return;
+            }
+
+            // Check max 3 issues limit
+            const userIssues = await github.rest.issues.listForRepo({
+              owner, repo,
+              assignee: commentUser,
+              state: 'open'
+            });
+            
+            if (userIssues.data.length >= 3) {
+              await github.rest.issues.createComment({
+                owner, repo, issue_number: issueNumber,
+                body: `@${commentUser} You have already claimed the maximum number of issues (3). Please finish your current issues before claiming new ones.`
+              });
+              return;
+            }
+
+            // Assign the issue
+            await github.rest.issues.addAssignees({
+              owner, repo, issue_number: issueNumber,
+              assignees: [commentUser]
+            });
+            
+            await github.rest.issues.createComment({
+              owner, repo, issue_number: issueNumber,
+              body: `@${commentUser} Assigned to you! Happy coding.`
+            });
