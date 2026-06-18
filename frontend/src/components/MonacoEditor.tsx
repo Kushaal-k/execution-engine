@@ -15,7 +15,7 @@ function MonacoEditor({
 
     useEffect(() => {console.log(language)}, [language])
   return (
-    <div className="80vh w-full z-0">
+    <div className="h-full w-full z-0">
       <Editor
         height="80vh"
         language={language.toLowerCase()}

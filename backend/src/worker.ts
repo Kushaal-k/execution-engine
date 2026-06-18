@@ -1,4 +1,4 @@
-import { spawn } from "node:child_process"
+import { ChildProcess, spawn } from "node:child_process"
 import { once } from "node:events";
 import { promises as fs } from "node:fs";
 import crypto from "node:crypto";
@@ -44,7 +44,7 @@ while (true) {
     const stdin = job.stdin
 
     if (language.toLowerCase() === "javascript") {
-        fileName += ".js";
+        fileName += ".js"
         runCommand = "node"
     }
     else if (language.toLowerCase() === "python") {
@@ -53,15 +53,20 @@ while (true) {
     }
     else if (language.toLowerCase() === "c++") {
         fileName += ".cpp"
-        runCommand = ""
+        runCommand = `g++`
     }
+
+    let filePath = `${options.cwd}/${fileName}`
 
     const MAX_BYTES = 10 * 1024 * 1024;
 
     try {
         await fs.writeFile(`${options.cwd}/${fileName}`, code)
+        let child = spawn(`${runCommand}`, [filePath], options);
 
-        const child = spawn(`${runCommand}`, [`${options.cwd}/${fileName}`], options);
+        if(language.toLowerCase() == "c++") 
+            child = spawn("sh", ["-c", `g++ "${filePath}" -o main && "${options.cwd}/main"`], options);
+
         const start = hrtime.bigint();
 
         let stdout = "";

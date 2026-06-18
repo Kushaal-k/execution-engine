@@ -7,8 +7,8 @@ function Sidebar() {
 
     if(close) {
         return (
-            <div className="absolute z-1 text-white left-0 bottom-0 border-gray-500 border-r-2 h-[80vh] bg-black/90 flex flex-col top-16">
-                <Menu onClick={() => setClose(false)}/>
+            <div className="absolute z-1 text-white left-0 bottom-0 border-gray-500 border-r-2 h-[80vh] flex flex-col top-16">
+                <Menu onClick={() => setClose(false)} height={18} width={18} className="m-1"/>
             </div>
         )
     }

@@ -2,6 +2,8 @@ import { useState } from "react";
 import MonacoEditor from "./MonacoEditor"
 import Sidebar from "./Sidebar";
 import Topbar from "./Topbar";
+import OutputArea from "./OutputArea";
+import InputArea from "./InputArea";
 
 export type Status = "Queued" | "Pending" | "Completed" | "Failed";
 
@@ -109,12 +111,14 @@ function InputCode() {
         <div className="flex items-center justify-center flex-col bg-gray-700">
             <Topbar language={language} setLanguage={setLanguage} handleSubmit={handleSubmit} loading={loading} status={status}/>
             <Sidebar/>
-            <MonacoEditor code={code} setCode={setCode} language={language}/>
-            <textarea className="w-full h-10 rounded-lg border border-gray-500 my-6 px-4 py-2 text-gray-300 placeholder:text-gray-300" placeholder="Input for your code" value={stdin} onChange={(e) => setStdin(e.target.value)}/>
-            {response?.error.trim() && <div className="w-full border border-red-800 bg-red-400 flex justify-center items-center py-4 px-10 my-2 rounded-xl">{response?.error || error}</div>}
-            <div className="w-full rounded-xl border border-gray-500 h-10 px-4 py-2 text-gray-300">
-                {response?.stdout}
+            <div className="relative w-full h-[80vh]">
+                <MonacoEditor code={code} setCode={setCode} language={language}/>
+                <div className="absolute bottom-0 w-full z-20">
+                    <InputArea stdin={stdin} setStdin={setStdin} />
+                </div>
             </div>
+            {response?.error.trim() && <div className="w-full border border-red-800 bg-red-400 flex justify-center items-center py-4 px-10 my-2 rounded-xl">{response?.error || error}</div>}
+            <OutputArea stdout={response?.stdout || "Press Run Code to see output of your code."}/>
         </div>
     )
 }
