@@ -15,23 +15,26 @@ function MonacoEditor({
 
     useEffect(() => {console.log(language)}, [language])
   return (
-    <Editor
-      className=""
-      height="90vh"
-      language={language.toLowerCase()}
-      defaultValue="console.log('Hello World')"
-      theme="vs-dark"
-      value={code}
-      onChange={(value) => setCode(value || "")}
-      options={{
-            suggestOnTriggerCharacters: true,
-            quickSuggestions: true,
-            wordBasedSuggestions: "currentDocument",
-            acceptSuggestionOnEnter: "on",
-            tabCompletion: "on",
+    <div className="80vh w-full z-0">
+      <Editor
+        height="80vh"
+        language={language.toLowerCase()}
+        defaultValue="console.log('Hello World')"
+        theme="vs-dark"
+        value={code}
+        onChange={(value) => setCode(value || "")}
+        options={{
+              suggestOnTriggerCharacters: true,
+              quickSuggestions: true,
+              wordBasedSuggestions: "currentDocument",
+              acceptSuggestionOnEnter: "on",
+              tabCompletion: "on",
+          }
         }
-      }
-    />
+      >
+      </Editor>
+    </div>
+    
   );
 }
 

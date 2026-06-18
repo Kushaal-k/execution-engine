@@ -1,7 +1,9 @@
 import { useState } from "react";
 import MonacoEditor from "./MonacoEditor"
+import Sidebar from "./Sidebar";
+import Topbar from "./Topbar";
 
-type Status = "Queued" | "Pending" | "Completed" | "Failed";
+export type Status = "Queued" | "Pending" | "Completed" | "Failed";
 
 type executionResponse =  {
     status: Status
@@ -104,20 +106,11 @@ function InputCode() {
     }
 
     return (
-        <div className="flex items-center justify-center flex-col p-10 bg-gray-700">
+        <div className="flex items-center justify-center flex-col bg-gray-700">
+            <Topbar language={language} setLanguage={setLanguage} handleSubmit={handleSubmit} loading={loading} status={status}/>
+            <Sidebar/>
             <MonacoEditor code={code} setCode={setCode} language={language}/>
             <textarea className="w-full h-10 rounded-lg border border-gray-500 my-6 px-4 py-2 text-gray-300 placeholder:text-gray-300" placeholder="Input for your code" value={stdin} onChange={(e) => setStdin(e.target.value)}/>
-            <select value={language} onChange={(e) => setLanguage(e.target.value)} className="border border-gray-400 rounded-lg px-4 py-2 my-2 selection:">
-                <option>Javascript</option>
-                <option>Python</option>
-                <option>C++</option>
-            </select>
-            <button 
-                className="flex items-center justify-center px-8 py-2 my-4 bg-amber-400 rounded"
-                onClick={handleSubmit} 
-                disabled={loading}
-            >
-                {status!= "Completed" ? `${status as string}` : "Run Code"}</button>
             {response?.error.trim() && <div className="w-full border border-red-800 bg-red-400 flex justify-center items-center py-4 px-10 my-2 rounded-xl">{response?.error || error}</div>}
             <div className="w-full rounded-xl border border-gray-500 h-10 px-4 py-2 text-gray-300">
                 {response?.stdout}
