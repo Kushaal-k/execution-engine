@@ -21,7 +21,7 @@ function Topbar({ language, setLanguage, handleSubmit, loading, status } : ITopB
                 <Select value={language} onChange={(e) => setLanguage(e.target.value)} data-focus data-hover className="border border-gray-500 px-8 py-2 rounded">
                     <option className="text-black">Javascript</option>
                     <option className="text-black">Python</option>
-                    <option className="text-black">C++</option>
+                    <option className="text-black">Cpp</option>
                 </Select>
             </div>
             <div>

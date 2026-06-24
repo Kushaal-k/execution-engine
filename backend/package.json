@@ -4,7 +4,12 @@
   "description": "",
   "main": "src/server.ts",
   "type": "module",
-  "keywords": ["execution-engine", "redis", "docker-container", ""],
+  "keywords": [
+    "execution-engine",
+    "redis",
+    "docker-container",
+    ""
+  ],
   "author": "",
   "license": "ISC",
   "scripts": {
@@ -13,6 +18,7 @@
   },
   "dependencies": {
     "cors": "^2.8.6",
+    "dockerode": "^5.0.0",
     "dotenv": "^17.4.2",
     "express": "^5.2.1",
     "ioredis": "^5.11.1",
@@ -20,6 +26,7 @@
   },
   "devDependencies": {
     "@types/cors": "^2.8.19",
+    "@types/dockerode": "^4.0.1",
     "@types/express": "^5.0.6",
     "@types/node": "^25.9.1",
     "nodemon": "^3.1.14",

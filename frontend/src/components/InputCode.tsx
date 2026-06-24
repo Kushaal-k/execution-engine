@@ -34,6 +34,7 @@ function InputCode() {
 
     const handleSubmit = async () => {
         if(code.trim()){
+            console.log('Button clicked!!')
             setLoading(true);
             try {
                 const response = await fetch("http://localhost:3000/api/response", {
@@ -44,7 +45,7 @@ function InputCode() {
                     body: JSON.stringify(
                         {
                             code,
-                            language,
+                            language: language.toLowerCase(),
                             stdin,
                         }
                     )
@@ -102,8 +103,7 @@ function InputCode() {
                     memoryUsed: 0,
                     exitCode: 1,
                 })
-            }
-            
+            }  
         }
     }
 
