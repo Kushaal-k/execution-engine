@@ -77,8 +77,8 @@ function InputCode() {
             const response = await fetch(url);
             const data: executionResponse = await response.json();
 
-            if(data.status == "Completed"){
-                setStatus("Completed")
+            if(data.status == "Completed" || data.status == "Failed"){
+                setStatus(data.status)
                 setResponse({
                     status: data.status,
                     stdout: data.stdout,
@@ -91,7 +91,7 @@ function InputCode() {
                 return;
             }
 
-            setTimeout(() => jobPolling(jobId), 2000);
+            setTimeout(() => jobPolling(jobId), 3250);
         } 
         catch (error) {
             if(error instanceof Error){
