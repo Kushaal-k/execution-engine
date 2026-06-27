@@ -4,6 +4,7 @@ import Sidebar from "./Sidebar";
 import Topbar from "./Topbar";
 import OutputArea from "./OutputArea";
 import InputArea from "./InputArea";
+import { io } from "socket.io-client";
 
 export type Status = "Queued" | "Pending" | "Completed" | "Failed";
 
@@ -21,6 +22,8 @@ type Input = {
     stdin?: string,
     language: string
 }
+
+const socket = io("http://localhost:3000"); 
 
 function InputCode() {
     const [code, setCode] = useState<string>('console.log("Hello World")');
@@ -73,11 +76,8 @@ function InputCode() {
     async function jobPolling(jobId: string) {
         const url = `http://localhost:3000/api/response/${jobId}`;
 
-        try {
-            const response = await fetch(url);
-            const data: executionResponse = await response.json();
-
-            if(data.status == "Completed" || data.status == "Failed"){
+        socket.on(`result:${jobId}`, (data: executionResponse) => {
+            if(data.status == 'Completed' || data.status == 'Failed') {
                 setStatus(data.status)
                 setResponse({
                     status: data.status,
@@ -87,24 +87,44 @@ function InputCode() {
                     memoryUsed: data.memoryUsed,
                     exitCode: data.exitCode,
                 })
-
                 return;
             }
 
-            setTimeout(() => jobPolling(jobId), 3250);
-        } 
-        catch (error) {
-            if(error instanceof Error){
-                setResponse({
-                    status: "Failed",
-                    stdout: "",
-                    error: `Polling Failed, ${error.message}`,
-                    executionTime: 0,
-                    memoryUsed: 0,
-                    exitCode: 1,
-                })
-            }  
-        }
+            socket.off(`result:${jobId}`);
+        })
+
+        // try {
+        //     const response = await fetch(url);
+        //     const data: executionResponse = await response.json();
+
+        //     if(data.status == "Completed" || data.status == "Failed"){
+        //         setStatus(data.status)
+        //         setResponse({
+        //             status: data.status,
+        //             stdout: data.stdout,
+        //             error: data.error,
+        //             executionTime: data.executionTime,
+        //             memoryUsed: data.memoryUsed,
+        //             exitCode: data.exitCode,
+        //         })
+
+        //         return;
+        //     }
+
+        //     setTimeout(() => jobPolling(jobId), 3250);
+        // } 
+        // catch (error) {
+        //     if(error instanceof Error){
+        //         setResponse({
+        //             status: "Failed",
+        //             stdout: "",
+        //             error: `Polling Failed, ${error.message}`,
+        //             executionTime: 0,
+        //             memoryUsed: 0,
+        //             exitCode: 1,
+        //         })
+        //     }  
+        // }
     }
 
     return (

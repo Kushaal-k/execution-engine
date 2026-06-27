@@ -35,7 +35,7 @@ const executionQueue = new Queue("execution-queue", { connection })
 io.on("connection", (socket) => {
     console.log("Connected: ", socket.id);
 
-    
+
 })
 
 // const QUEUE_KEY = 'jobs:pending'
@@ -57,9 +57,9 @@ app.post('/api/response', async (req: Request<{}, {}, IInputCodeRequest>, res: R
         //     JSON.stringify({ id: job_id })
         // )
 
-        await executionQueue.add("execution-job", 
+        await executionQueue.add("execution-job",
             { id: job_id },
-            { 
+            {
                 jobId: job_id,
                 removeOnComplete: true,
                 attempts: 3,
@@ -113,6 +113,6 @@ app.get("/api/response/:id", async (req: Request, res: Response<IExecutionRespon
     }
 })
 
-app.listen(3000, () => {
+httpServer.listen(3000, () => {
     console.log(`App is running at http://localhost:3000`)
 })

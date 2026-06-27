@@ -3,6 +3,8 @@ import dotenv from "dotenv";
 import { ResponseModel } from "./models/response.model.js";
 import Docker from "dockerode";
 import { PassThrough } from "node:stream";
+import { io } from "./server.js";
+import type { IExecutionResponse, status as StatusType } from "./types/types.js";
 
 const docker = new Docker({ socketPath: '/var/run/docker.sock' });
 
@@ -62,11 +64,16 @@ const config = {
 
 
 export default async function executeCode(job_id: string) {
-    // const result = await redis.brpop("jobs:pending", 0);
-    // if (!result) return;
-    // const job_id = JSON.parse(result[1]).id;
 
     console.log(`[execution engine] Processing job: ${job_id}`);
+
+    // Declare result fields in outer scope so `finally` can always emit them
+    let status: StatusType = "Failed";
+    let stdoutResult = "";
+    let errorResult = "";
+    let executionTime = 0;
+    let memoryUsed = 0;
+    let exitCode: number | null = 1;
 
     try {
         const job = await ResponseModel.findById(job_id);
@@ -75,10 +82,6 @@ export default async function executeCode(job_id: string) {
             console.error(`[execution engine] Job not found: ${job_id}`);
             return;
         }
-
-        // await job.updateOne(
-        //     { $set: { status: "Running" } }
-        // )
 
         const code = job.code;
         const language = job.language;
@@ -108,21 +111,21 @@ export default async function executeCode(job_id: string) {
             StdinOnce: true,
         })
 
-        const stream = await container.attach({ 
+        const stream = await container.attach({
             stream: true,
             stdin: true,
             stdout: true,
             stderr: true
         });
 
-        const stdout = new PassThrough();
+        const stdoutStream = new PassThrough();
         const stderr = new PassThrough();
-        docker.modem.demuxStream(stream, stdout, stderr);
-        
+        docker.modem.demuxStream(stream, stdoutStream, stderr);
+
         let stdoutData = '', stderrData = '';
         const MAX_OUTPUT_LENGTH = 1024 * 512; // 512KB limit
 
-        stdout.on('data', chunk => {
+        stdoutStream.on('data', chunk => {
             if (stdoutData.length < MAX_OUTPUT_LENGTH) {
                 stdoutData += chunk.toString();
                 if (stdoutData.length > MAX_OUTPUT_LENGTH) {
@@ -146,7 +149,7 @@ export default async function executeCode(job_id: string) {
             stream.write(stdin);
             stream.end();
         }
-        
+
         let isTLE = false;
         const timer = setTimeout(async () => {
             isTLE = true;
@@ -159,31 +162,37 @@ export default async function executeCode(job_id: string) {
 
         const data = await container.wait();
         clearTimeout(timer);
-        
+
         const inspectData = await container.inspect();
         const isMLE = inspectData.State.OOMKilled;
 
-        let finalStatus = "Completed";
-        let finalError = stderrData;
+        // Determine final status
+        status = "Completed";
+        errorResult = stderrData;
 
         if (isTLE) {
-            finalStatus = "Failed";
-            finalError = "Time Limit Exceeded\n" + stderrData;
+            status = "Failed";
+            errorResult = "Time Limit Exceeded\n" + stderrData;
         } else if (isMLE) {
-            finalStatus = "Failed";
-            finalError = "Memory Limit Exceeded\n" + stderrData;
+            status = "Failed";
+            errorResult = "Memory Limit Exceeded\n" + stderrData;
         } else if (data.StatusCode !== 0) {
-            finalStatus = "Failed";
+            status = "Failed";
         }
+
+        stdoutResult = stdoutData;
+        executionTime = performance.now() - startTime;
+        memoryUsed = 0;
+        exitCode = data.StatusCode;
 
         await job.updateOne({
             $set: {
-                status: finalStatus,
-                stdout: stdoutData,
-                error: finalError,
-                executionTime: performance.now() - startTime,
-                memoryUsed: 0,
-                exitCode: data.StatusCode
+                status,
+                stdout: stdoutResult,
+                error: errorResult,
+                executionTime,
+                memoryUsed,
+                exitCode
             }
         });
 
@@ -196,19 +205,35 @@ export default async function executeCode(job_id: string) {
     } catch (error) {
         console.error(`[execution engine] Job ${job_id} failed:`, error);
 
-        // Try to mark the job as failed in the DB
+        status = "Failed";
+        errorResult = error instanceof Error ? error.message : "Unknown error";
+        executionTime = 0;
+        memoryUsed = 0;
+        exitCode = 1;
+
         try {
             await ResponseModel.findByIdAndUpdate(job_id, {
                 $set: {
-                    status: "Failed",
-                    error: error instanceof Error ? error.message : "Unknown error",
-                    executionTime: 0,
-                    memoryUsed: 0,
-                    exitCode: 1
+                    status,
+                    error: errorResult,
+                    executionTime,
+                    memoryUsed,
+                    exitCode
                 }
             });
         } catch (dbError) {
             console.error(`[execution engine] Failed to update job status:`, dbError);
         }
+    }
+    finally {
+        const result: IExecutionResponse = {
+            status,
+            stdout: stdoutResult,
+            error: errorResult,
+            executionTime,
+            memoryUsed,
+            exitCode
+        };
+        io.emit(`result:${job_id}`, result);
     }
 }
