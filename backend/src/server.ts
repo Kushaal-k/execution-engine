@@ -3,9 +3,16 @@ import type { Request, Response } from "express";
 import cors from "cors";
 import connectDB from "./db/config.js";
 import dotenv from "dotenv";
-import redis from "./redis.js";
-import type { IExecutionResponse, IInputCodeRequest } from "./types/types.js"
-import { ResponseModel } from "./models/response.model.js"
+import type { IExecutionResponse, IInputCodeRequest } from "./types/types.js";
+import { ResponseModel } from "./models/response.model.js";
+import { Server } from "socket.io";
+import { createServer } from "node:http";
+import { Queue } from "bullmq";
+
+export const connection = {
+    host: 'localhost',
+    port: 6379,
+}
 
 dotenv.config()
 connectDB();
@@ -14,7 +21,24 @@ const app = express();
 app.use(express.json());
 app.use(cors())
 
-const QUEUE_KEY = 'jobs:pending'
+const httpServer = createServer(app);
+
+export const io = new Server(httpServer, {
+    cors: {
+        origin: true,
+        credentials: true,
+    }
+});
+
+const executionQueue = new Queue("execution-queue", { connection })
+
+io.on("connection", (socket) => {
+    console.log("Connected: ", socket.id);
+
+    
+})
+
+// const QUEUE_KEY = 'jobs:pending'
 
 app.post('/api/response', async (req: Request<{}, {}, IInputCodeRequest>, res: Response) => {
     const { code, language, stdin } = req.body;
@@ -28,9 +52,22 @@ app.post('/api/response', async (req: Request<{}, {}, IInputCodeRequest>, res: R
 
         const job_id = job._id.toString();
 
-        await redis.lpush(
-            QUEUE_KEY,
-            JSON.stringify({ id: job_id })
+        // await redis.lpush(
+        //     QUEUE_KEY,
+        //     JSON.stringify({ id: job_id })
+        // )
+
+        await executionQueue.add("execution-job", 
+            { id: job_id },
+            { 
+                jobId: job_id,
+                removeOnComplete: true,
+                attempts: 3,
+                backoff: {
+                    type: 'exponential',
+                    delay: 1000
+                }
+            }
         )
 
         return res.status(200).json({ "status": `${job.status}`, jobId: job_id })
