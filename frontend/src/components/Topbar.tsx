@@ -13,12 +13,12 @@ function Topbar({ language, setLanguage, handleSubmit, loading, status } : ITopB
     
     return (
         <div className="z-2 top-0 w-full h-16 bg-blue-900 flex items-center justify-between px-8">
-            <div className="text-2xl">
+            <div className="text-2xl text-white">
                 Tessera.io - Execution Engine
             </div>
             <div className="flex items-center gap-12">
             <div>
-                <Select value={language} onChange={(e) => setLanguage(e.target.value)} data-focus data-hover className="border border-gray-500 px-8 py-2 rounded">
+                <Select value={language} onChange={(e) => setLanguage(e.target.value)} data-focus data-hover className="border border-gray-500 px-8 py-2 rounded text-white">
                     <option className="text-black">Javascript</option>
                     <option className="text-black">Python</option>
                     <option className="text-black">Cpp</option>

@@ -128,7 +128,7 @@ function InputCode() {
     }
 
     return (
-        <div className="flex items-center justify-center flex-col bg-gray-700">
+        <div className="flex items-center justify-start flex-col bg-gray-700 h-screen">
             <Topbar language={language} setLanguage={setLanguage} handleSubmit={handleSubmit} loading={loading} status={status}/>
             <Sidebar/>
             <div className="relative w-full h-[80vh]">
