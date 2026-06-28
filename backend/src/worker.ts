@@ -5,7 +5,7 @@ import executeCode from "./execution.js";
 const worker = new Worker(
     "execution-queue",
     async (job: Job) => {
-        await executeCode(job.data.id);
+        return await executeCode(job.data.id);
     },
     {
         connection: {
@@ -14,11 +14,3 @@ const worker = new Worker(
         }
     }
 );
-
-worker.on("completed", (job, value) => {
-    console.log("Job completed", job.id, value);
-})
-
-worker.on("failed", (job, error) => {
-    console.log("Job failed", job?.id, error);
-})

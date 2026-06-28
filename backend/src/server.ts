@@ -7,7 +7,7 @@ import type { IExecutionResponse, IInputCodeRequest } from "./types/types.js";
 import { ResponseModel } from "./models/response.model.js";
 import { Server } from "socket.io";
 import { createServer } from "node:http";
-import { Queue } from "bullmq";
+import { QueueEvents, Queue } from "bullmq";
 
 export const connection = {
     host: 'localhost',
@@ -31,14 +31,13 @@ export const io = new Server(httpServer, {
 });
 
 const executionQueue = new Queue("execution-queue", { connection })
+const queueEvents = new QueueEvents("execution-queue", { connection })
 
 io.on("connection", (socket) => {
     console.log("Connected: ", socket.id);
 
 
 })
-
-// const QUEUE_KEY = 'jobs:pending'
 
 app.post('/api/response', async (req: Request<{}, {}, IInputCodeRequest>, res: Response) => {
     const { code, language, stdin } = req.body;
@@ -51,11 +50,6 @@ app.post('/api/response', async (req: Request<{}, {}, IInputCodeRequest>, res: R
         })
 
         const job_id = job._id.toString();
-
-        // await redis.lpush(
-        //     QUEUE_KEY,
-        //     JSON.stringify({ id: job_id })
-        // )
 
         await executionQueue.add("execution-job",
             { id: job_id },
@@ -111,6 +105,15 @@ app.get("/api/response/:id", async (req: Request, res: Response<IExecutionRespon
                 })
         }
     }
+})
+
+queueEvents.on("completed", async ({ jobId, returnvalue }) => {
+    io.emit(`result:${jobId}`, returnvalue);
+})
+
+queueEvents.on("failed", async ({ jobId, failedReason }) => {
+    console.log(`Job ${jobId} failed: ${failedReason}`);
+    io.emit(`result:${jobId}`, { err: failedReason });
 })
 
 httpServer.listen(3000, () => {

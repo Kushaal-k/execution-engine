@@ -3,7 +3,6 @@ import dotenv from "dotenv";
 import { ResponseModel } from "./models/response.model.js";
 import Docker from "dockerode";
 import { PassThrough } from "node:stream";
-import { io } from "./server.js";
 import type { IExecutionResponse, status as StatusType } from "./types/types.js";
 
 const docker = new Docker({ socketPath: '/var/run/docker.sock' });
@@ -166,7 +165,6 @@ export default async function executeCode(job_id: string) {
         const inspectData = await container.inspect();
         const isMLE = inspectData.State.OOMKilled;
 
-        // Determine final status
         status = "Completed";
         errorResult = stderrData;
 
@@ -225,15 +223,12 @@ export default async function executeCode(job_id: string) {
             console.error(`[execution engine] Failed to update job status:`, dbError);
         }
     }
-    finally {
-        const result: IExecutionResponse = {
-            status,
-            stdout: stdoutResult,
-            error: errorResult,
-            executionTime,
-            memoryUsed,
-            exitCode
-        };
-        io.emit(`result:${job_id}`, result);
-    }
+    return {
+        status,
+        stdout: stdoutResult,
+        error: errorResult,
+        executionTime,
+        memoryUsed,
+        exitCode
+    };
 }
