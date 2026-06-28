@@ -3,7 +3,7 @@ import dotenv from "dotenv";
 import { ResponseModel } from "./models/response.model.js";
 import Docker from "dockerode";
 import { PassThrough } from "node:stream";
-import { io } from "./server.js";
+import { publishResult } from "./socketio.js";
 import type { IExecutionResponse, status as StatusType } from "./types/types.js";
 
 const docker = new Docker({ socketPath: '/var/run/docker.sock' });
@@ -234,6 +234,6 @@ export default async function executeCode(job_id: string) {
             memoryUsed,
             exitCode
         };
-        io.emit(`result:${job_id}`, result);
+        await publishResult(job_id, result);
     }
 }

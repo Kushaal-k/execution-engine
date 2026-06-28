@@ -5,9 +5,8 @@ import connectDB from "./db/config.js";
 import dotenv from "dotenv";
 import type { IExecutionResponse, IInputCodeRequest } from "./types/types.js";
 import { ResponseModel } from "./models/response.model.js";
-import { Server } from "socket.io";
-import { createServer } from "node:http";
 import { Queue } from "bullmq";
+import { app, httpServer, io, setupResultRelay } from "./socketio.js";
 
 export const connection = {
     host: 'localhost',
@@ -17,18 +16,8 @@ export const connection = {
 dotenv.config()
 connectDB();
 
-const app = express();
 app.use(express.json());
 app.use(cors())
-
-const httpServer = createServer(app);
-
-export const io = new Server(httpServer, {
-    cors: {
-        origin: true,
-        credentials: true,
-    }
-});
 
 const executionQueue = new Queue("execution-queue", { connection })
 
@@ -113,6 +102,7 @@ app.get("/api/response/:id", async (req: Request, res: Response<IExecutionRespon
     }
 })
 
-httpServer.listen(3000, () => {
+httpServer.listen(3000, async () => {
     console.log(`App is running at http://localhost:3000`)
+    await setupResultRelay();
 })
