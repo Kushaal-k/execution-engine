@@ -6,7 +6,6 @@ const roomManager = new RoomManager();
 
 export function registerSocketHandlers(io: Server<ClientToServerEvents, ServerToClientEvents>) {
     io.on("connection", (socket) => {
-        console.log("Client connected: ", socket.id);
 
         socket.on('join-room', (roomId, username) => {
             socket.data.roomId = roomId;
@@ -32,6 +31,7 @@ export function registerSocketHandlers(io: Server<ClientToServerEvents, ServerTo
 
             room.applyUpdate(update);
             socket.to(roomId).emit("update", update);
+            
             console.log(room.getText());
         })
 

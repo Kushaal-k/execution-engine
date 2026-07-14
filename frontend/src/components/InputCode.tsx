@@ -4,7 +4,7 @@ import Sidebar from "./Sidebar";
 import Topbar from "./Topbar";
 import OutputArea from "./OutputArea";
 import InputArea from "./InputArea";
-import { io } from "socket.io-client";
+import socket from "../api/socket.js"
 
 export type Status = "Queued" | "Pending" | "Completed" | "Failed";
 
@@ -22,8 +22,6 @@ type Input = {
     stdin?: string,
     language: string
 }
-
-const socket = io("http://localhost:3000"); 
 
 function InputCode() {
     const [code, setCode] = useState<string>('console.log("Hello World")');
