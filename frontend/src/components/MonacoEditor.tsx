@@ -2,6 +2,7 @@ import { Editor } from "@monaco-editor/react";
 import { useEffect, type Dispatch, type SetStateAction } from "react";
 import socket from '../api/socket';
 import * as Y from "yjs";
+import { MonacoBinding } from "y-monaco"
 
 interface MonacoEditorProps {
   language: string;
@@ -13,8 +14,6 @@ const doc = new Y.Doc();
 
 const ytext = doc.getText("main");
 
-socket.emit('join-room', 'room-1', 'Kushaal');
-
 function MonacoEditor({
   language,
   code,
@@ -22,18 +21,16 @@ function MonacoEditor({
 }: MonacoEditorProps) {
 
   useEffect(() => {
+    socket.emit('join-room', 'room-1', 'Kushaal');
+
     socket.on('sync', (state) => {
       const update = new Uint8Array(state);
       Y.applyUpdate(doc, update);
-
-      setCode(ytext.toString());
     })
 
     socket.on('update', (state) => {
       const update = new Uint8Array(state);
       Y.applyUpdate(doc, update);
-
-      setCode(ytext.toString());
     })
 
     doc.on('update', (update) => {
@@ -49,7 +46,6 @@ function MonacoEditor({
         language={language.toLowerCase()}
         defaultValue="console.log('Hello World')"
         theme="vs-dark"
-        value={code}
         options={{
               suggestOnTriggerCharacters: true,
               quickSuggestions: true,
@@ -61,16 +57,9 @@ function MonacoEditor({
         onMount={(editor, monaco) => {
           const model = editor.getModel();
 
-          model?.onDidChangeContent((event) => {
-            const change = event.changes[0];
-            
-            ytext.delete(change.rangeOffset, change.rangeLength);
-            ytext.insert(change.rangeOffset, change.text);
-            
-            console.log(ytext.toString());
+          if(!model) return;
 
-            setCode(ytext.toString())
-          })
+          const monacoBinding = new MonacoBinding(ytext, model, new Set([editor]), null);
         }}
       >
       </Editor>

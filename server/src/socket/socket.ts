@@ -30,9 +30,7 @@ export function registerSocketHandlers(io: Server<ClientToServerEvents, ServerTo
             }
 
             room.applyUpdate(update);
-            socket.to(roomId).emit("update", update);
-            
-            console.log(room.getText());
+            socket.to(roomId).emit("update", update);            
         })
 
         socket.on('disconnect', () => {
@@ -41,7 +39,6 @@ export function registerSocketHandlers(io: Server<ClientToServerEvents, ServerTo
             if(!roomId){
                 return;
             }
-
             const room = roomManager.getRoom(roomId);
 
             if(!room) return;
@@ -51,9 +48,6 @@ export function registerSocketHandlers(io: Server<ClientToServerEvents, ServerTo
             if(room.isEmpty()){
                 roomManager.deleteRoom(roomId);
             }
-        
-            console.log("Client disconnected!")
-
         })
     })
 }
