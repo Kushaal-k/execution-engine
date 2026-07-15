@@ -1,6 +1,6 @@
 import { Editor } from "@monaco-editor/react";
 import { useEffect, type Dispatch, type SetStateAction } from "react";
-import socket from '../api/socket';
+import {socket2} from '../api/socket';
 import * as Y from "yjs";
 import { MonacoBinding } from "y-monaco"
 
@@ -21,20 +21,20 @@ function MonacoEditor({
 }: MonacoEditorProps) {
 
   useEffect(() => {
-    socket.emit('join-room', 'room-1', 'Kushaal');
+    socket2.emit('join-room', 'room-1', 'Kushaal');
 
-    socket.on('sync', (state) => {
+    socket2.on('sync', (state) => {
       const update = new Uint8Array(state);
       Y.applyUpdate(doc, update);
     })
 
-    socket.on('update', (state) => {
+    socket2.on('update', (state) => {
       const update = new Uint8Array(state);
       Y.applyUpdate(doc, update);
     })
 
     doc.on('update', (update) => {
-      socket.emit('update', update);
+      socket2.emit('update', update);
     })
 
   }, [])

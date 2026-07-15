@@ -116,6 +116,6 @@ queueEvents.on("failed", async ({ jobId, failedReason }) => {
     io.emit(`result:${jobId}`, { err: failedReason });
 })
 
-httpServer.listen(3000, () => {
-    console.log(`App is running at http://localhost:3000`)
+httpServer.listen(5000, () => {
+    console.log(`App is running at http://localhost:5000`)
 })

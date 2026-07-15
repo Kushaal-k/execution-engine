@@ -4,7 +4,7 @@ import Sidebar from "./Sidebar";
 import Topbar from "./Topbar";
 import OutputArea from "./OutputArea";
 import InputArea from "./InputArea";
-import socket from "../api/socket.js"
+import {socket} from "../api/socket.js"
 
 export type Status = "Queued" | "Pending" | "Completed" | "Failed";
 
@@ -38,7 +38,7 @@ function InputCode() {
             console.log('Button clicked!!')
             setLoading(true);
             try {
-                const response = await fetch("http://localhost:3000/api/response", {
+                const response = await fetch("http://localhost:5000/api/response", {
                     method: "POST",
                     headers: {
                         "Content-Type": "application/json",
@@ -72,7 +72,7 @@ function InputCode() {
     }
 
     async function jobPolling(jobId: string) {
-        const url = `http://localhost:3000/api/response/${jobId}`;
+        const url = `http://localhost:5000/api/response/${jobId}`;
 
         socket.on(`result:${jobId}`, (data: executionResponse) => {
             if(data.status == 'Completed' || data.status == 'Failed') {
