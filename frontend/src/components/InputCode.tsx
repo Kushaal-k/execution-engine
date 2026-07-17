@@ -90,47 +90,15 @@ function InputCode() {
 
             socket.off(`result:${jobId}`);
         })
-
-        // try {
-        //     const response = await fetch(url);
-        //     const data: executionResponse = await response.json();
-
-        //     if(data.status == "Completed" || data.status == "Failed"){
-        //         setStatus(data.status)
-        //         setResponse({
-        //             status: data.status,
-        //             stdout: data.stdout,
-        //             error: data.error,
-        //             executionTime: data.executionTime,
-        //             memoryUsed: data.memoryUsed,
-        //             exitCode: data.exitCode,
-        //         })
-
-        //         return;
-        //     }
-
-        //     setTimeout(() => jobPolling(jobId), 3250);
-        // } 
-        // catch (error) {
-        //     if(error instanceof Error){
-        //         setResponse({
-        //             status: "Failed",
-        //             stdout: "",
-        //             error: `Polling Failed, ${error.message}`,
-        //             executionTime: 0,
-        //             memoryUsed: 0,
-        //             exitCode: 1,
-        //         })
-        //     }  
-        // }
     }
 
     return (
+        //TODO: Add input area for username as required by the sync server
         <div className="flex items-center justify-center flex-col bg-gray-700">
             <Topbar language={language} setLanguage={setLanguage} handleSubmit={handleSubmit} loading={loading} status={status}/>
             <Sidebar/>
             <div className="relative w-full h-[80vh]">
-                <MonacoEditor code={code} setCode={setCode} language={language}/>
+                <MonacoEditor language={language}/>
                 <div className="absolute bottom-0 w-full z-20">
                     <InputArea stdin={stdin} setStdin={setStdin} />
                 </div>

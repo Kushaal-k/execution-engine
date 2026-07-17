@@ -33,6 +33,21 @@ export function registerSocketHandlers(io: Server<ClientToServerEvents, ServerTo
             socket.to(roomId).emit("update", update);            
         })
 
+        socket.on('presence-update', (presence) => {
+            const roomId = socket.data.roomId;
+            
+            socket.to(roomId).emit('presence-update', {
+                userId: socket.id,
+                presence
+            })
+
+            if(presence) {
+                console.log(presence.cursor?.column);
+                console.log(presence.cursor?.lineNumber);
+            }
+            
+        })
+        
         socket.on('disconnect', () => {
             const roomId = socket.data.roomId;
 
