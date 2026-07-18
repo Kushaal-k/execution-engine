@@ -17,19 +17,13 @@ type executionResponse =  {
     exitCode: number | null,
 }
 
-type Input = {
-    code: string,
-    stdin?: string,
-    language: string
-}
-
 function InputCode() {
-    const [code, setCode] = useState<string>('console.log("Hello World")');
+    const [code] = useState<string>('console.log("Hello World")');
     const [language, setLanguage] = useState<string>('Javascript');
     const [loading, setLoading] = useState<boolean>(false);
     const [stdin, setStdin] = useState<string>('');
     const [response, setResponse] = useState<executionResponse | null>(null);
-    const [jobId, setJobId] = useState<string>("");
+    const [, setJobId] = useState<string>("");
     const [status, setStatus] = useState<Status>("Completed");
     const [error, setError] = useState<string>("");
 
@@ -72,8 +66,6 @@ function InputCode() {
     }
 
     async function jobPolling(jobId: string) {
-        const url = `http://localhost:5000/api/response/${jobId}`;
-
         socket.on(`result:${jobId}`, (data: executionResponse) => {
             if(data.status == 'Completed' || data.status == 'Failed') {
                 setStatus(data.status)

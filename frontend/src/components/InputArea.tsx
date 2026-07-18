@@ -15,12 +15,16 @@ function InputArea({
 
     if (!isOpen) {
         return (
-            <div 
-                className="w-full bg-gray-800 border-t border-gray-600 flex justify-end p-1 text-gray-300 cursor-pointer hover:bg-gray-700 transition-colors"
-                onClick={() => setIsOpen(true)} >
+            <button
+                className="w-full bg-gray-800 border-t border-gray-600 flex justify-end p-1 text-gray-300 cursor-pointer hover:bg-gray-700 transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-blue-500 focus-visible:ring-inset"
+                onClick={() => setIsOpen(true)}
+                aria-expanded={isOpen}
+                aria-controls="input-area-content"
+                aria-label="Expand input area"
+            >
                 <span className="text-sm mr-2 mt-0.5 select-none font-medium">Input Area</span>
                 <ChevronUp />
-            </div>
+            </button>
         )
     }
 
@@ -28,9 +32,17 @@ function InputArea({
         <div className="w-full z-20 relative bg-gray-800 border-t border-gray-600 shadow-lg shadow-black/50">
             <div className="flex justify-between items-center bg-gray-800 px-3 py-1 border-b border-gray-700">
                 <span className="text-sm text-gray-300 font-medium select-none">Input Area</span>
-                <ChevronDown className="text-gray-300 cursor-pointer hover:text-white" onClick={() => setIsOpen(false)} />
+                <button
+                    className="text-gray-300 cursor-pointer hover:text-white focus:outline-none focus-visible:ring-2 focus-visible:ring-blue-500 rounded"
+                    onClick={() => setIsOpen(false)}
+                    aria-expanded={isOpen}
+                    aria-controls="input-area-content"
+                    aria-label="Collapse input area"
+                >
+                    <ChevronDown />
+                </button>
             </div>
-            <div className="p-2">
+            <div className="p-2" id="input-area-content">
                 <textarea 
                     className="w-full h-24 border border-gray-600 rounded-md px-4 py-2 bg-gray-900 text-gray-300 placeholder:text-gray-500 focus:outline-none focus:ring-1 focus:ring-blue-500 resize-y" 
                     placeholder="Input for your code..." 

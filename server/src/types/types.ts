@@ -32,7 +32,3 @@ export interface ServerToClientEvents {
     "update": (update: Uint8Array) => void;
     "presence-update": (presenceUpdate: PresenceUpdate) => void;
 }
-
-interface socketData {
-    roomId?: string;
-}

@@ -18,7 +18,7 @@ function Topbar({ language, setLanguage, handleSubmit, loading, status } : ITopB
             </div>
             <div className="flex items-center gap-12">
             <div>
-                <Select value={language} onChange={(e) => setLanguage(e.target.value)} data-focus data-hover className="border border-gray-500 px-8 py-2 rounded">
+                <Select aria-label="Select programming language" value={language} onChange={(e) => setLanguage(e.target.value)} data-focus data-hover className="border border-gray-500 px-8 py-2 rounded focus:outline-none focus-visible:ring-2 focus-visible:ring-white">
                     <option className="text-black">Javascript</option>
                     <option className="text-black">Python</option>
                     <option className="text-black">Cpp</option>
@@ -26,7 +26,7 @@ function Topbar({ language, setLanguage, handleSubmit, loading, status } : ITopB
             </div>
             <div>
                 <button 
-                className="flex items-center justify-center px-8 py-2 my-4 bg-amber-400 rounded"
+                className="flex items-center justify-center px-8 py-2 my-4 bg-amber-400 hover:bg-amber-500 rounded disabled:opacity-50 disabled:cursor-not-allowed focus:outline-none focus-visible:ring-2 focus-visible:ring-white focus-visible:ring-offset-2 focus-visible:ring-offset-blue-900 transition-colors"
                 onClick={handleSubmit} 
                 disabled={loading}
             >
