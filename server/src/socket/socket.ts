@@ -40,12 +40,6 @@ export function registerSocketHandlers(io: Server<ClientToServerEvents, ServerTo
                 userId: socket.id,
                 presence
             })
-
-            if(presence) {
-                console.log(presence.cursor?.column);
-                console.log(presence.cursor?.lineNumber);
-            }
-            
         })
         
         socket.on('disconnect', () => {
