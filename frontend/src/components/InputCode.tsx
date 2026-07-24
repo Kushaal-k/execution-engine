@@ -26,6 +26,7 @@ function InputCode() {
     const [, setJobId] = useState<string>("");
     const [status, setStatus] = useState<Status>("Completed");
     const [error, setError] = useState<string>("");
+    const [username, setUsername] = useState<string>("");
 
     const handleSubmit = async () => {
         if(code.trim()){
@@ -85,12 +86,11 @@ function InputCode() {
     }
 
     return (
-        //TODO: Add input area for username as required by the sync server
         <div className="flex items-center justify-center flex-col bg-gray-700">
-            <Topbar language={language} setLanguage={setLanguage} handleSubmit={handleSubmit} loading={loading} status={status}/>
+            <Topbar language={language} setLanguage={setLanguage} handleSubmit={handleSubmit} loading={loading} status={status} username={username} setUsername={setUsername}/>
             <Sidebar/>
             <div className="relative w-full h-[80vh]">
-                <MonacoEditor language={language}/>
+                <MonacoEditor language={language} username={username}/>
                 <div className="absolute bottom-0 w-full z-20">
                     <InputArea stdin={stdin} setStdin={setStdin} />
                 </div>
