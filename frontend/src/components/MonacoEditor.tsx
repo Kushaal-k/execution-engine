@@ -10,6 +10,7 @@ import type {
 
 interface MonacoEditorProps {
   language: string;
+  username: string;
 }
 
 const throttle = (fn: () => void, delay: number) => {
@@ -31,18 +32,19 @@ const ytext = doc.getText("main");
 
 function MonacoEditor({
   language,
+  username,
 }: MonacoEditorProps) {
 
   const editorRef = useRef<monaco.editor.IStandaloneCodeEditor | null>(null);
   const decorations = useRef(new Map<string, monaco.editor.IEditorDecorationsCollection>());
 
-  const mountFunction = (editor: monaco.editor.IStandaloneCodeEditor, monacoInstance: typeof monaco) => {
+  const mountFunction = (editor: monaco.editor.IStandaloneCodeEditor) => {
     const model = editor.getModel();
     if (!model) return;
 
     editorRef.current = editor;
 
-    const monacoBinding = new MonacoBinding(ytext, model, new Set([editor]), null);
+    new MonacoBinding(ytext, model, new Set([editor]), null);
 
     //TODO: Add throttle of 50ms - to save up requests
     const sendPresence = throttle(() => {
@@ -78,7 +80,9 @@ function MonacoEditor({
   }
 
   useEffect(() => {
-    socket2.emit('join-room', 'room-1', 'Kushaal');
+    if (username) {
+      socket2.emit('join-room', 'room-1', username);
+    }
 
     socket2.on('sync', (state) => {
       const update = new Uint8Array(state);
@@ -139,7 +143,7 @@ function MonacoEditor({
       socket2.off("presence-update");
     }
 
-  }, [])
+  }, [username])
 
   return (
     <div className="h-full w-full z-0">
@@ -154,9 +158,10 @@ function MonacoEditor({
           wordBasedSuggestions: "currentDocument",
           acceptSuggestionOnEnter: "on",
           tabCompletion: "on",
+          readOnly: !username,
         }
         }
-        onMount={(editor, monaco) => mountFunction(editor, monaco)}
+        onMount={(editor) => mountFunction(editor)}
       >
       </Editor>
     </div>
