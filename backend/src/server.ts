@@ -23,6 +23,7 @@ app.use(cors())
 
 const httpServer = createServer(app);
 
+//Initialization of socket server
 export const io = new Server(httpServer, {
     cors: {
         origin: true,
@@ -30,19 +31,19 @@ export const io = new Server(httpServer, {
     }
 });
 
+//BullMQ queue and events for jobs
 const executionQueue = new Queue("execution-queue", { connection })
 const queueEvents = new QueueEvents("execution-queue", { connection })
 
 io.on("connection", (socket) => {
     console.log("Connected: ", socket.id);
-
-
 })
 
 app.post('/api/response', async (req: Request<{}, {}, IInputCodeRequest>, res: Response) => {
     const { code, language, stdin } = req.body;
 
     try {
+        //Adding jobs in database for persistence and in BullMQ queue
         const job = await ResponseModel.create({
             code,
             ...(stdin !== undefined && { stdin }),
@@ -70,6 +71,7 @@ app.post('/api/response', async (req: Request<{}, {}, IInputCodeRequest>, res: R
     }
 })
 
+//TODO: I don't think this api is required now as i swithched from HTTP polling to socket- will check later
 app.get("/api/response/:id", async (req: Request, res: Response<IExecutionResponse>) => {
     const job_id = req.params.id;
 
@@ -107,6 +109,7 @@ app.get("/api/response/:id", async (req: Request, res: Response<IExecutionRespon
     }
 })
 
+//Real-time job updates sent to frontend using sockets
 queueEvents.on("completed", async ({ jobId, returnvalue }) => {
     io.emit(`result:${jobId}`, returnvalue);
 })

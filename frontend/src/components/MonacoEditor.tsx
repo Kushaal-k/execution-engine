@@ -13,6 +13,7 @@ interface MonacoEditorProps {
   username: string;
 }
 
+//Throttle for real-time updates for collaborative cursor or selections
 const throttle = (fn: () => void, delay: number) => {
   let lastCall = 0;
 
@@ -26,6 +27,7 @@ const throttle = (fn: () => void, delay: number) => {
   }
 }
 
+//New shared doc
 const doc = new Y.Doc();
 
 const ytext = doc.getText("main");
@@ -36,17 +38,25 @@ function MonacoEditor({
 }: MonacoEditorProps) {
 
   const editorRef = useRef<monaco.editor.IStandaloneCodeEditor | null>(null);
-  const decorations = useRef(new Map<string, monaco.editor.IEditorDecorationsCollection>());
+  const decoration = useRef(new Map<string, monaco.editor.IEditorDecorationsCollection>());
+  const usernameRef = useRef(username);
 
+  //Update username on every change
+  useEffect(() => {
+    usernameRef.current = username;
+  }, [username]);
+
+  //Mount on monaco editor for creating yjs binding and presence update
   const mountFunction = (editor: monaco.editor.IStandaloneCodeEditor) => {
     const model = editor.getModel();
     if (!model) return;
 
     editorRef.current = editor;
 
+    //Monaco Binding
     new MonacoBinding(ytext, model, new Set([editor]), null);
 
-    //TODO: Add throttle of 50ms - to save up requests
+    //Send presence update after every 50ms
     const sendPresence = throttle(() => {
       const position = editor.getPosition();
       const selection = editor.getSelection();
@@ -62,27 +72,15 @@ function MonacoEditor({
           }
           : undefined,
         activeFile: "main.js",
+        username: usernameRef.current || "Anonymous",
       });
     }, 50);
-
-    const collection = editor.createDecorationsCollection();
-
-    collection.set([
-      {
-        range: new monaco.Range(1, 1, 1, 5),
-        options: {
-          inlineClassName: "remote-cursor",
-        },
-      },
-    ]);
 
     editor.onDidChangeCursorSelection(sendPresence);
   }
 
   useEffect(() => {
-    if (username) {
-      socket2.emit('join-room', 'room-1', username);
-    }
+    socket2.emit('join-room', 'room-1', username || 'Anonymous');
 
     socket2.on('sync', (state) => {
       const update = new Uint8Array(state);
@@ -95,40 +93,75 @@ function MonacoEditor({
     })
 
     socket2.on('presence-update', (presenceUpdate: PresenceUpdate) => {
-      console.log("1")
       if(presenceUpdate.userId === socket2.id) return;
       const editor = editorRef.current;
-      console.log("2")
 
       if(!editor) return;
-      //TODO: Add visuals to show remote cursors
-      //TODO: Show users connected as well
-      console.log("3");
+      // TODO: Show users connected as well
+      // TODO: Codebase is getting too big - Add comments to each part so I can understand later
+      // TODO: Refactor this file as this is getting complex and confusing
 
-      let collection = decorations.current.get(presenceUpdate.userId);
+      let collection = decoration.current.get(presenceUpdate.userId);
       if(!collection) {
         collection = editor.createDecorationsCollection();
-        decorations.current.set(presenceUpdate.userId, collection);
+        decoration.current.set(presenceUpdate.userId, collection);
       }
 
       const cursor = presenceUpdate.presence.cursor;
+      const selection = presenceUpdate.presence.selection;
       if (!cursor) return;
 
-      const range = new monaco.Range(
+      //Create Range for remote cursor
+      const cursorRange = new monaco.Range(
         cursor.lineNumber,
         cursor.column,
         cursor.lineNumber,
         cursor.column,
       )
 
-      collection.set([
-        {
-          range,
+      //Create decoration for remote cursor 
+      const cursorDecoration: monaco.editor.IModelDeltaDecoration = {
+        range: cursorRange,
+        options: {
+          beforeContentClassName: "remote-cursor",
+          hoverMessage: {value: presenceUpdate.presence.username}
+        }
+      }
+
+      let decorations: monaco.editor.IModelDeltaDecoration[] = [
+        cursorDecoration
+      ]
+
+      //Check if there is remote selection 
+      const hasSelection =
+        selection &&
+        !(
+            selection.startLineNumber === selection.endLineNumber &&
+            selection.startColumn === selection.endColumn
+        );
+      
+      //Create remote selection decoration
+      if(hasSelection && selection) {
+        const selectionRange = new monaco.Range(
+          selection?.startLineNumber,
+          selection?.startColumn,
+          selection?.endLineNumber,
+          selection?.endColumn,
+        )
+
+        //Applying all remote decorations
+        const selectionDecoration: monaco.editor.IModelDeltaDecoration = {
+          range: selectionRange,
           options: {
-            inlineClassName: "remote-cursor"
+            className: "remote-selection",
+            hoverMessage: {value: presenceUpdate.presence.username}
           }
         }
-      ])
+
+        decorations.push(selectionDecoration);
+      }
+
+      collection.set(decorations)
       
       console.log("Updated!!");
     })
@@ -158,9 +191,7 @@ function MonacoEditor({
           wordBasedSuggestions: "currentDocument",
           acceptSuggestionOnEnter: "on",
           tabCompletion: "on",
-          readOnly: !username,
-        }
-        }
+        }}
         onMount={(editor) => mountFunction(editor)}
       >
       </Editor>

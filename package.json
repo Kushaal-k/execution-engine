@@ -1,0 +1,12 @@
+{
+  "name": "execution-engine-root",
+  "private": true,
+  "version": "1.0.0",
+  "scripts": {
+    "dev:backend": "npm --prefix backend run dev",
+    "dev:worker": "npm --prefix backend run worker",
+    "dev:server": "npm --prefix server run dev",
+    "dev:frontend": "npm --prefix frontend run dev",
+    "dev": "npx concurrently -n \"backend,worker,server,frontend\" -c \"blue,magenta,green,yellow\" \"npm run dev:backend\" \"npm run dev:worker\" \"npm run dev:server\" \"npm run dev:frontend\""
+  }
+}

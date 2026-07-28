@@ -10,11 +10,13 @@ const docker = new Docker({ socketPath: '/var/run/docker.sock' });
 dotenv.config();
 await connectDB();
 
+//Options for docker to search for files in directory locally, and timeout
 const options = {
     cwd: "/home/kushaal/projects/Execution-Engine/backend/temp:/app",
     timeout: 10000,
 }
 
+//Supported Languages and their images
 export type SupportedLanguage = "javascript" | "python" | "cpp";
 
 const LANGUAGE_IMAGES: Record<SupportedLanguage, string> = {
@@ -23,6 +25,7 @@ const LANGUAGE_IMAGES: Record<SupportedLanguage, string> = {
     cpp: "gcc:14",
 };
 
+//Run command for all supported languages
 const LANGUAGE_COMMANDS: Record<
     SupportedLanguage,
     (code: string) => string[]
@@ -32,15 +35,19 @@ const LANGUAGE_COMMANDS: Record<
     cpp: (code) => ["sh", "-c", `echo '${code.replace(/'/g, "'\\''")}' > /tmp/main.cpp && g++ -o /tmp/main /tmp/main.cpp && /tmp/main`]
 };
 
+//Check if image exists locally - pull if not
 const ensureImageExists = async (image: string) => {
     try {
         console.log(`[execution engine] Checking for ${image} locally`)
+        //Get docker image information locally
         await docker.getImage(image).inspect();
         console.log(`[execution engine] ${image} found locally`)
     } catch (error) {
+        //Pull otherwise
         const stream = await docker.pull(image);
         console.log(`[execution engine] Pulling ${image} from docker hub`);
-
+        
+        //Keep checking if image is pulled 
         await new Promise((resolve, reject) => {
             docker.modem.followProgress(stream, (err, res) => {
                 if (err) reject(err);
@@ -54,13 +61,13 @@ const ensureImageExists = async (image: string) => {
 
 const DEFAULT_MEMORY_LIMIT_MB = 256;
 
+
+//Configuration for running container
 const config = {
     runtime: "runc",
     memoryLimitMb: DEFAULT_MEMORY_LIMIT_MB,
     cpuQuota: 100000,
 }
-
-
 
 export default async function executeCode(job_id: string) {
 
@@ -75,6 +82,7 @@ export default async function executeCode(job_id: string) {
     let exitCode: number | null = 1;
 
     try {
+        //Checking job in database
         const job = await ResponseModel.findById(job_id);
 
         if (!job) {
@@ -90,8 +98,10 @@ export default async function executeCode(job_id: string) {
 
         await ensureImageExists(image);
 
+        //Start timer for performance tracking
         const startTime = performance.now();
 
+        //Create container with required configs
         const container = await docker.createContainer({
             Image: image,
             User: "1000",
@@ -110,6 +120,7 @@ export default async function executeCode(job_id: string) {
             StdinOnce: true,
         })
 
+        //Stream for input, output and error
         const stream = await container.attach({
             stream: true,
             stdin: true,
@@ -117,6 +128,7 @@ export default async function executeCode(job_id: string) {
             stderr: true
         });
 
+        //Demux stream from docker logs to remove unwanted characters
         const stdoutStream = new PassThrough();
         const stderr = new PassThrough();
         docker.modem.demuxStream(stream, stdoutStream, stderr);
@@ -149,6 +161,7 @@ export default async function executeCode(job_id: string) {
             stream.end();
         }
 
+        //Checking for time limit
         let isTLE = false;
         const timer = setTimeout(async () => {
             isTLE = true;
@@ -162,6 +175,7 @@ export default async function executeCode(job_id: string) {
         const data = await container.wait();
         clearTimeout(timer);
 
+        //check for container - logs - errors - or sudden kill
         const inspectData = await container.inspect();
         const isMLE = inspectData.State.OOMKilled;
 

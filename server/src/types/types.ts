@@ -14,6 +14,7 @@ export interface Presence {
     cursor?: CursorPosition;
     selection?: Selection;
     activeFile?: string;
+    username: string
 }
 
 export interface PresenceUpdate {
