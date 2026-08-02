@@ -37,8 +37,11 @@ function MonacoEditor({
   username,
 }: MonacoEditorProps) {
 
+  //Editor ref after mount
   const editorRef = useRef<monaco.editor.IStandaloneCodeEditor | null>(null);
+  //Map of decorations for each user
   const decoration = useRef(new Map<string, monaco.editor.IEditorDecorationsCollection>());
+  //Current username ref
   const usernameRef = useRef(username);
 
   //Update username on every change
@@ -61,6 +64,7 @@ function MonacoEditor({
       const position = editor.getPosition();
       const selection = editor.getSelection();
 
+      //Emit presence update to sync server for other users at 50ms interval
       socket2.emit("presence-update", {
         cursor: position ?? undefined,
         selection: selection
@@ -92,6 +96,7 @@ function MonacoEditor({
       Y.applyUpdate(doc, update);
     })
 
+    //Capture updates of remote users and show them 
     socket2.on('presence-update', (presenceUpdate: PresenceUpdate) => {
       if(presenceUpdate.userId === socket2.id) return;
       const editor = editorRef.current;
