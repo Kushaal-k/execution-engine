@@ -1,6 +1,6 @@
 import type { Server } from 'socket.io';
 import { RoomManager } from '../room/room-manager.js';
-import type { ClientToServerEvents,ServerToClientEvents } from "../types/types.js";
+import type { ClientToServerEvents, ServerToClientEvents, User } from "../types/types.js";
 
 const roomManager = new RoomManager();
 
@@ -12,6 +12,8 @@ export function registerSocketHandlers(io: Server<ClientToServerEvents, ServerTo
             
             const room = roomManager.getRoom(roomId) 
                         ?? roomManager.createRoom(roomId);
+            
+            
 
             room.join(socket.id, username);
             socket.join(roomId);
@@ -35,10 +37,18 @@ export function registerSocketHandlers(io: Server<ClientToServerEvents, ServerTo
 
         socket.on('presence-update', (presence) => {
             const roomId = socket.data.roomId;
+            const room = roomManager.getRoom(roomId);
+            
+            if(!room) return;
+
+            const user = room?.getUser(socket.id);
+
+            if(!user) return;
             
             socket.to(roomId).emit('presence-update', {
                 userId: socket.id,
-                presence
+                presence,
+                user
             })
         })
         
@@ -52,7 +62,12 @@ export function registerSocketHandlers(io: Server<ClientToServerEvents, ServerTo
 
             if(!room) return;
 
-            room.leave(socket.id);
+            const color = room.getUser(socket.id)?.color;
+            if(!color) return;
+
+            room.leave(socket.id, color);
+
+            socket.to(roomId).emit('user-left', socket.id);
 
             if(room.isEmpty()){
                 roomManager.deleteRoom(roomId);

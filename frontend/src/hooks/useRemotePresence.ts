@@ -3,8 +3,7 @@ import type { MutableRefObject } from "react";
 import * as monaco from "monaco-editor";
 import { socket2 } from "../api/socket";
 import type { PresenceUpdate } from "../../../server/src/types/types";
-import { createRemoteDecoration } from "../utils/monacoDecorations";
-
+import { createRemoteDecoration, removeUserStyles } from "../utils/monacoDecorations";
 
 export function useRemotePresence(
     editor: monaco.editor.IStandaloneCodeEditor | null,
@@ -20,7 +19,7 @@ export function useRemotePresence(
 
             setActiveUsers(prev => {
                 const next = new Map(prev);
-                next.set(update.userId, update.presence.username || "Anonymous");
+                next.set(update.userId, update.user.username || "Anonymous");
                 return next;
             })
 
@@ -33,10 +32,28 @@ export function useRemotePresence(
             collection.set(createRemoteDecoration(update));
         };
 
+        const handleUserLeft = (userId: string) => {
+            const collection = decorationsRef.current.get(userId);
+            if(collection) {
+                collection.clear();
+                decorationsRef.current.delete(userId);
+            }
+
+            setActiveUsers(prev => {
+                const next = new Map(prev);
+                next.delete(userId);
+                return next;
+            });
+
+            removeUserStyles(userId);
+        }
+
         socket2.on("presence-update", handlePresence);
+        socket2.on("user-left", handleUserLeft);
 
         return () => {
             socket2.off("presence-update", handlePresence);
+            socket2.off("user-left", handleUserLeft);
         }
     }, [editor, decorationsRef])
 
