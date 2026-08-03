@@ -14,7 +14,8 @@
   "license": "ISC",
   "scripts": {
     "dev": "tsx watch src/server.ts",
-    "worker": "tsx watch src/worker.ts"
+    "worker": "tsx watch src/worker.ts",
+    "test": "vitest run"
   },
   "dependencies": {
     "bullmq": "^5.79.1",
@@ -31,9 +32,11 @@
     "@types/dockerode": "^4.0.1",
     "@types/express": "^5.0.6",
     "@types/node": "^25.9.1",
+    "@vitest/coverage-v8": "^4.1.10",
     "nodemon": "^3.1.14",
     "ts-node-dev": "^2.0.0",
     "tsx": "^4.22.4",
-    "typescript": "^6.0.3"
+    "typescript": "^6.0.3",
+    "vitest": "^4.1.10"
   }
 }
