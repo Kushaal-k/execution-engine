@@ -89,7 +89,7 @@ function InputCode() {
         <div className="flex items-center justify-center flex-col bg-gray-700">
             <Topbar language={language} setLanguage={setLanguage} handleSubmit={handleSubmit} loading={loading} status={status} username={username} setUsername={setUsername}/>
             <Sidebar/>
-            <div className="relative w-full h-[80vh]">
+            <div className="relative w-full">
                 <MonacoEditor language={language} username={username}/>
                 <div className="absolute bottom-0 w-full z-20">
                     <InputArea stdin={stdin} setStdin={setStdin} />

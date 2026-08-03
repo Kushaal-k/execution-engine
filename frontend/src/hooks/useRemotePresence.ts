@@ -1,23 +1,22 @@
 import { useEffect, useState } from "react";
 import type { MutableRefObject } from "react";
 import * as monaco from "monaco-editor";
-import { socket, socket2 } from "../api/socket";
+import { socket2 } from "../api/socket";
 import type { PresenceUpdate } from "../../../server/src/types/types";
 import { createRemoteDecoration } from "../utils/monacoDecorations";
 
 
 export function useRemotePresence(
-    editorRef: MutableRefObject<monaco.editor.IStandaloneCodeEditor | null>,
+    editor: monaco.editor.IStandaloneCodeEditor | null,
     decorationsRef: MutableRefObject<Map<string, monaco.editor.IEditorDecorationsCollection>>,
 ) {
     const [ activeUsers, setActiveUsers ] = useState<Map<string, string>>(new Map());
 
     useEffect(() => {
+        if(!editor) return;
+
         const handlePresence = (update: PresenceUpdate) => {
             if(update.userId == socket2.id) return;
-
-            const editor = editorRef.current;
-            if(!editor) return;
 
             setActiveUsers(prev => {
                 const next = new Map(prev);
@@ -39,7 +38,7 @@ export function useRemotePresence(
         return () => {
             socket2.off("presence-update", handlePresence);
         }
-    }, [editorRef, decorationsRef])
+    }, [editor, decorationsRef])
 
     return { activeUsers };
 }

@@ -7,14 +7,14 @@ function Sidebar() {
 
     if(close) {
         return (
-            <div className="absolute z-1 text-white left-0 bottom-0 border-gray-500 border-r-2 h-[80vh] flex flex-col top-16">
+            <div className="absolute z-1 text-white left-0 bottom-0 border-gray-500 border-r-2 h-[80vh] flex flex-col top-17">
                 <Menu onClick={() => setClose(false)} height={18} width={18} className="m-1"/>
             </div>
         )
     }
 
     return (
-        <div className={`${close ? "hidden" : "absolute"} z-1 text-white left-0 top-16 bottom-0 w-64 border-gray-500 border-r-2 h-[80vh] bg-black/90 flex flex-col ease-in-out`}>
+        <div className={`${close ? "hidden" : "absolute"} z-1 text-white left-0 top-16 bottom-0 w-64 border-gray-500 border-r-2 h-[85vh] bg-black/90 flex flex-col ease-in-out`}>
             <div className="p-4 font-semibold text-xs tracking-wide border-b border-gray-800/60 uppercase">File Explorer</div>
             <div className=" text-sm border-b overflow-y-auto p-2 flex justify-between text-gray-300/95 uppercase">
                 <p className="">Project</p>
