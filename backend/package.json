@@ -15,7 +15,7 @@
   "scripts": {
     "dev": "tsx watch src/server.ts",
     "worker": "tsx watch src/worker.ts",
-    "test": "node --experimental-vm-modules node_modules/jest/bin/jest.js"
+    "test": "vitest run"
   },
   "dependencies": {
     "bullmq": "^5.79.1",
@@ -31,13 +31,11 @@
     "@types/cors": "^2.8.19",
     "@types/dockerode": "^4.0.1",
     "@types/express": "^5.0.6",
-    "@types/jest": "^30.0.0",
     "@types/node": "^25.9.1",
-    "jest": "^30.4.2",
     "nodemon": "^3.1.14",
-    "ts-jest": "^29.4.12",
     "ts-node-dev": "^2.0.0",
     "tsx": "^4.22.4",
-    "typescript": "^6.0.3"
+    "typescript": "^6.0.3",
+    "vitest": "^4.1.10"
   }
 }

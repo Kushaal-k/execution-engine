@@ -1,20 +1,20 @@
-import { jest } from '@jest/globals';
+import { describe, it, expect, vi, beforeEach } from 'vitest';
 
-jest.unstable_mockModule('bullmq', () => {
+vi.mock('bullmq', () => {
     return {
-        Worker: jest.fn(() => ({
-            on: jest.fn(),
-        })),
+        Worker: vi.fn(function() {
+            return { on: vi.fn() };
+        }),
     };
 });
 
-jest.unstable_mockModule('./execution.js', () => {
+vi.mock('./execution.js', () => {
     return {
-        default: jest.fn(),
+        default: vi.fn(),
     };
 });
 
-jest.unstable_mockModule('./server.js', () => {
+vi.mock('./server.js', () => {
     return {
         connection: {
             host: 'test-redis-host',
@@ -25,7 +25,7 @@ jest.unstable_mockModule('./server.js', () => {
 
 describe('worker redis connection setup', () => {
     beforeEach(() => {
-        jest.resetModules();
+        vi.resetModules();
     });
 
     it('should initialize worker with the exported connection from server.ts', async () => {

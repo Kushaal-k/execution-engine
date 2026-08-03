@@ -1,79 +1,81 @@
-import { jest } from '@jest/globals';
+import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 
 // Mock dependencies
-jest.unstable_mockModule('bullmq', () => {
+vi.mock('bullmq', () => {
     return {
-        Queue: jest.fn(() => ({
-            add: jest.fn(),
-        })),
-        QueueEvents: jest.fn(() => ({
-            on: jest.fn(),
-        })),
+        Queue: vi.fn(function() {
+            return { add: vi.fn() };
+        }),
+        QueueEvents: vi.fn(function() {
+            return { on: vi.fn() };
+        }),
     };
 });
 
-jest.unstable_mockModule('./db/config.js', () => {
+vi.mock('./db/config.js', () => {
     return {
-        default: jest.fn(),
+        default: vi.fn(),
     };
 });
 
-jest.unstable_mockModule('express', () => {
+vi.mock('express', () => {
     const expressApp = {
-        use: jest.fn(),
-        post: jest.fn(),
-        get: jest.fn(),
+        use: vi.fn(),
+        post: vi.fn(),
+        get: vi.fn(),
     };
-    const expressMock = jest.fn(() => expressApp) as any;
-    expressMock.json = jest.fn();
+    const expressMock = vi.fn(() => expressApp) as any;
+    expressMock.json = vi.fn();
     return {
         default: expressMock,
     };
 });
 
-jest.unstable_mockModule('cors', () => {
+vi.mock('cors', () => {
     return {
-        default: jest.fn(),
+        default: vi.fn(),
     };
 });
 
-jest.unstable_mockModule('dotenv', () => {
+vi.mock('dotenv', () => {
     return {
         default: {
-            config: jest.fn(),
+            config: vi.fn(),
         },
     };
 });
 
-jest.unstable_mockModule('socket.io', () => {
+vi.mock('socket.io', () => {
     return {
-        Server: jest.fn(() => ({
-            on: jest.fn(),
-            emit: jest.fn(),
+        Server: vi.fn(function() {
+            return {
+                on: vi.fn(),
+                emit: vi.fn(),
+            };
+        }),
+    };
+});
+
+vi.mock('node:http', () => {
+    return {
+        createServer: vi.fn(() => ({
+            listen: vi.fn(),
         })),
     };
 });
 
-jest.unstable_mockModule('node:http', () => {
-    return {
-        createServer: jest.fn(() => ({
-            listen: jest.fn(),
-        })),
-    };
-});
-
-jest.unstable_mockModule('./models/response.model.js', () => {
+vi.mock('./models/response.model.js', () => {
     return {
         ResponseModel: {
-            create: jest.fn(),
-            findById: jest.fn(),
+            create: vi.fn(),
+            findById: vi.fn(),
         }
     };
 });
 
 describe('server redis connection setup', () => {
     beforeEach(() => {
-        jest.resetModules();
+        vi.resetModules();
     });
 
     afterEach(() => {
