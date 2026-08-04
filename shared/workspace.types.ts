@@ -29,6 +29,3 @@ export interface WorkspaceSnapshot {
     folders: FolderMetadata[];
     metadata: WorkspaceMetadata;
 }
-
-// Backwards compatibility alias
-export type workspaceSnapshot = WorkspaceSnapshot;

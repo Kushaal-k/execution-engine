@@ -39,21 +39,26 @@ function MonacoEditor({
   //Current username ref
   const usernameRef = useRef(username);
 
+  const [currentFileId, setCurrentFileId] = useState<string>();
+
   //Update username on every change
   useEffect(() => {
     usernameRef.current = username;
   }, [username]);
 
-  const { ytext } = useYjsSync(roomId, username);
+  const { doc, files, folders, workspaceMetadata } = useYjsSync(roomId, username);
   const { activeUsers } = useRemotePresence(editor, decorationRef);
+  const ytext = currentFileId ? doc.getText(currentFileId) : null;
 
   useEffect(() => {
-    if(!editor) return;
+    if(!editor || !ytext) return;
     
     const model = editor.getModel();
     if(!model) return;
 
     const binding = new MonacoBinding(ytext, model, new Set([editor]), null);
+    
+    console.log("Binding created");
 
     const sendPresence = throttle(() => {
       const position = editor.getPosition();
@@ -69,8 +74,7 @@ function MonacoEditor({
             endColumn: selection.endColumn,
           }
           : undefined,
-        activeFile: "main.js",
-        username: usernameRef.current || "Anonymous",
+        activeFile: currentFileId
       });
     }, 50);
 
@@ -81,6 +85,13 @@ function MonacoEditor({
       socket2.off("presence-update", sendPresence);
     }
   }, [editor, ytext])
+
+  useEffect(() => {
+    if(!currentFileId && files.length > 0) {
+      console.log(files);
+      setCurrentFileId(files[0].id);
+    }
+  }, [currentFileId, files])
 
   return (
     <div className="h-full w-full z-0">

@@ -13,13 +13,12 @@ export function registerSocketHandlers(io: Server<ClientToServerEvents, ServerTo
             const room = roomManager.getRoom(roomId) 
                         ?? roomManager.createRoom(roomId);
             
-            
-
             room.join(socket.id, username);
             socket.join(roomId);
+            
+            const workspace = room.getWorkspace();
 
-            const state = room.getState();
-            socket.emit("sync", state);
+            socket.emit("sync", workspace.getSnapshot());
         })    
 
         socket.on('update', (update) => {
@@ -31,7 +30,9 @@ export function registerSocketHandlers(io: Server<ClientToServerEvents, ServerTo
                 return;
             }
 
-            room.applyUpdate(update);
+            const workspace = room.getWorkspace();
+            workspace.applyUpdate(update);
+
             socket.to(roomId).emit("update", update);            
         })
 

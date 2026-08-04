@@ -1,24 +1,10 @@
 import * as Y from "yjs";
-
-interface FileMetadata {
-    id: string;
-    name: string;
-    parentFolderId: string | null;
-    language: string;
-}
-
-interface FolderMetadata {
-    id: string;
-    name: string;
-    parentFolderId: string | null;
-}
-
-interface WorkspaceMetadata {
-    id: string;
-    name: string;
-    createdAt: number;
-    updatedAt: number;
-}
+import type { 
+    FileMetadata,
+    FolderMetadata,
+    WorkspaceMetadata,
+    WorkspaceSnapshot 
+} from "../types/types.js";
  
 export class Workspace {
 
@@ -42,9 +28,29 @@ export class Workspace {
             createdAt: Date.now(),
             updatedAt: Date.now()
         })
+
+           this.createFile(
+                "index.js",
+                "js",
+                null
+            );
+        //TODO: Refresh updatedAt in future updates
     }
-  
-    createFile(fileName: string, language: string, parentFolderId: string) {
+    
+    getFiles(): FileMetadata[] {
+        return Array.from(this.files.values());
+    }
+
+    getFolders(): FolderMetadata[] {
+        return Array.from(this.folders.values());
+    }
+
+    getMetadata(): WorkspaceMetadata {
+        return this.metadata.get("workspace")!;
+    }
+
+    //TODO: Add File system validation - duplicate, and folder inside folder
+    createFile(fileName: string, language: string, parentFolderId: string | null) {
         const fileId = crypto.randomUUID();
 
         const fileData = {
@@ -134,8 +140,13 @@ export class Workspace {
         return this.folders.get(folderId);
     }
 
-    getSnapshot() {
-
+    getSnapshot(): WorkspaceSnapshot {
+        return {
+            state: this.encodeState(),
+            files: this.getFiles(),
+            folders: this.getFolders(),
+            metadata: this.getMetadata()
+        }
     }
 
     applyUpdate(update: Uint8Array) {

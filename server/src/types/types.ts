@@ -4,6 +4,6 @@
  */
 
 export type { ExecutionStatus, SupportedLanguage, IExecutionRequest, IInputCodeRequest, IExecutionResponse } from "@execution-engine/shared";
-export type { FileMetadata, FolderMetadata, WorkspaceMetadata, WorkspaceSnapshot, workspaceSnapshot } from "@execution-engine/shared";
+export type { FileMetadata, FolderMetadata, WorkspaceMetadata, WorkspaceSnapshot } from "@execution-engine/shared";
 export type { CursorPosition, Selection, User, Presence, PresenceUpdate } from "@execution-engine/shared";
 export type { ClientToServerEvents, ServerToClientEvents } from "@execution-engine/shared";

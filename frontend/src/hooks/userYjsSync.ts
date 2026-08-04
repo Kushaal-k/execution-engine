@@ -1,16 +1,24 @@
-import { useEffect, useEffectEvent, useMemo } from "react";
+import { useEffect, useMemo, useState } from "react";
 import * as Y from "yjs";
 import { socket2 } from "../api/socket";
+import type { FolderMetadata, FileMetadata, WorkspaceSnapshot, WorkspaceMetadata } from "@execution-engine/shared";
 
 export function useYjsSync(roomId: string, username: string) {
     const doc = useMemo(() => new Y.Doc(), []);
-    const ytext = useMemo(() => doc.getText("main"), [doc]);
+    const [ files, setFiles ] = useState<FileMetadata[]>([]);
+    const [ folders, setFolders ] = useState<FolderMetadata[]>([]);
+    const [ workspaceMetadata, setWorkspaceMetadata ] = useState<WorkspaceMetadata>();
 
     useEffect(() => {
         socket2.emit("join-room", roomId, username);
 
-        socket2.on('sync', (state) => {
-            const update = new Uint8Array(state);
+        socket2.on('sync', (workspaceSnapshot: WorkspaceSnapshot) => {
+            const update = new Uint8Array(workspaceSnapshot.state);
+
+            setFiles(workspaceSnapshot.files);
+            setFolders(workspaceSnapshot.folders);
+            setWorkspaceMetadata(workspaceSnapshot.metadata);
+            
             Y.applyUpdate(doc, update);
         })
         
@@ -29,5 +37,5 @@ export function useYjsSync(roomId: string, username: string) {
         }
     }, [doc, roomId, username])
     
-    return { doc, ytext };
+    return { doc, files, folders, workspaceMetadata };
 }

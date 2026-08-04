@@ -1,5 +1,6 @@
 import * as Y from "yjs";
 import type { User } from "../types/types.js";
+import { Workspace } from "./workspace.js";
 
 const COLORS = [
     "#FF6B6B",
@@ -14,12 +15,13 @@ const COLORS = [
 
 export class Room {
 
-    private doc = new Y.Doc();
+    private workspace: Workspace;
     private users = new Map<string, User>();
     private availableColors = [...COLORS];
 
-    constructor() {
+    constructor(name: string) {
         this.availableColors.sort(() => Math.random() - 0.5);
+        this.workspace = new Workspace(name);
     }
 
     private assignColor(): string {
@@ -49,14 +51,6 @@ export class Room {
         }
     }
 
-    applyUpdate(update: Uint8Array){
-        Y.applyUpdate(this.doc, update);
-    }
-
-    getState(): Uint8Array {
-        return Y.encodeStateAsUpdate(this.doc);
-    }
-
     getUser(socketId: string) {
         return this.users.get(socketId);
     }
@@ -65,7 +59,7 @@ export class Room {
         return this.users.size === 0;
     }
 
-    getText(): string {
-        return this.doc.getText('main').toString();
+    getWorkspace(): Workspace {
+        return this.workspace;
     }
-}
+ }

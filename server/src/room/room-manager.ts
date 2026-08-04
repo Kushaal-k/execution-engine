@@ -8,7 +8,7 @@ export class RoomManager {
     }
 
     public createRoom(roomId: string) {
-        const room = new Room();
+        const room = new Room(roomId);
         this.roomMap.set(roomId, room);
 
         return room;
