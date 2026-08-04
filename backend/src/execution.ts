@@ -3,7 +3,7 @@ import dotenv from "dotenv";
 import { ResponseModel } from "./models/response.model.js";
 import Docker from "dockerode";
 import { PassThrough } from "node:stream";
-import type { IExecutionResponse, status as StatusType } from "./types/types.js";
+import type { IExecutionResponse, ExecutionStatus } from "./types/types.js";
 
 const docker = new Docker({ socketPath: '/var/run/docker.sock' });
 
@@ -74,7 +74,7 @@ export default async function executeCode(job_id: string) {
     console.log(`[execution engine] Processing job: ${job_id}`);
 
     // Declare result fields in outer scope so `finally` can always emit them
-    let status: StatusType = "Failed";
+    let status: ExecutionStatus = "Failed";
     let stdoutResult = "";
     let errorResult = "";
     let executionTime = 0;

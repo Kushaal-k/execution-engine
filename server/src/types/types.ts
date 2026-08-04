@@ -1,42 +1,9 @@
-export interface CursorPosition {
-    lineNumber: number;
-    column: number;
-}
+/**
+ * Server Type Exports
+ * Re-exports shared production types from the @execution-engine/shared workspace package
+ */
 
-export interface Selection {
-    startLineNumber: number;
-    startColumn: number;
-    endLineNumber: number;
-    endColumn: number;
-}
-
-export interface Presence {
-    cursor?: CursorPosition;
-    selection?: Selection;
-    activeFile?: string;
-}
-
-export interface PresenceUpdate {
-    userId: string;
-    presence: Presence;
-    user: User;
-}
-
-export interface User {
-    username: string;
-    color: string;
-}
-
-export interface ClientToServerEvents {
-    "join-room": (roomId: string, username: string) => void;
-    "update": (update: Uint8Array) => void;
-    "presence-update": (presence: Presence) => void;
-    "user-left": (userId: string) => void;
-}
-
-export interface ServerToClientEvents {
-    "sync": (state: Uint8Array) => void;
-    "update": (update: Uint8Array) => void;
-    "presence-update": (presenceUpdate: PresenceUpdate) => void;
-    "user-left": (userId: string) => void;
-}
+export type { ExecutionStatus, SupportedLanguage, IExecutionRequest, IInputCodeRequest, IExecutionResponse } from "@execution-engine/shared";
+export type { FileMetadata, FolderMetadata, WorkspaceMetadata, WorkspaceSnapshot, workspaceSnapshot } from "@execution-engine/shared";
+export type { CursorPosition, Selection, User, Presence, PresenceUpdate } from "@execution-engine/shared";
+export type { ClientToServerEvents, ServerToClientEvents } from "@execution-engine/shared";

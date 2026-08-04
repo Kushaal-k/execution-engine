@@ -2,7 +2,7 @@ import { useEffect, useState } from "react";
 import type { MutableRefObject } from "react";
 import * as monaco from "monaco-editor";
 import { socket2 } from "../api/socket";
-import type { PresenceUpdate } from "../../../server/src/types/types";
+import type { PresenceUpdate } from "@execution-engine/shared";
 import { createRemoteDecoration, removeUserStyles } from "../utils/monacoDecorations";
 
 export function useRemotePresence(

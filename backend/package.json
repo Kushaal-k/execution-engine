@@ -17,6 +17,7 @@
     "worker": "tsx watch src/worker.ts"
   },
   "dependencies": {
+    "@execution-engine/shared": "1.0.0",
     "bullmq": "^5.79.1",
     "cors": "^2.8.6",
     "dockerode": "^5.0.0",

@@ -1,5 +1,5 @@
 import * as monaco from "monaco-editor";
-import type { PresenceUpdate } from "../../../server/src/types/types";
+import type { PresenceUpdate } from "@execution-engine/shared";
 
 function injectUserStyles(userId: string, color: string) {
   const styleId = `remote-user-style-${userId}`;

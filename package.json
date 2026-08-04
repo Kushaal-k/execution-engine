@@ -2,6 +2,12 @@
   "name": "execution-engine-root",
   "private": true,
   "version": "1.0.0",
+  "workspaces": [
+    "shared",
+    "backend",
+    "server",
+    "frontend"
+  ],
   "scripts": {
     "dev:backend": "npm --prefix backend run dev",
     "dev:worker": "npm --prefix backend run worker",
