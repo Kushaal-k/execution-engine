@@ -37,7 +37,7 @@ export function createRemoteDecoration(
     const { username, color } = update.user;
     const { userId } = update;
 
-    if(!cursor) return;
+    if(!cursor) return [];
 
     injectUserStyles(userId, color);
 
