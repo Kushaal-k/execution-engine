@@ -3,13 +3,15 @@ import { useState, useEffect, useRef } from "react";
 import { socket2 } from '../api/socket';
 import { MonacoBinding } from "y-monaco";
 import * as monaco from "monaco-editor";
-import { useYjsSync } from "../hooks/userYjsSync";
 import { useRemotePresence } from "../hooks/useRemotePresence";
+import type { Doc } from "yjs";
 
 interface MonacoEditorProps {
   language: string;
   username: string;
   roomId?: string;
+  currentFileId: string;
+  doc: Doc
 }
 
 //Throttle for real-time updates for collaborative cursor or selections
@@ -29,7 +31,8 @@ const throttle = (fn: () => void, delay: number) => {
 function MonacoEditor({
   language,
   username,
-  roomId = "room-1"
+  currentFileId,
+  doc,
 }: MonacoEditorProps) {
 
   //Editor ref after mount
@@ -39,14 +42,12 @@ function MonacoEditor({
   //Current username ref
   const usernameRef = useRef(username);
 
-  const [currentFileId, setCurrentFileId] = useState<string>();
-
   //Update username on every change
   useEffect(() => {
     usernameRef.current = username;
   }, [username]);
 
-  const { doc, files, folders, workspaceMetadata } = useYjsSync(roomId, username);
+  
   const { activeUsers } = useRemotePresence(editor, decorationRef);
   const ytext = currentFileId ? doc.getText(currentFileId) : null;
 
@@ -86,17 +87,12 @@ function MonacoEditor({
     }
   }, [editor, ytext])
 
-  useEffect(() => {
-    if(!currentFileId && files.length > 0) {
-      console.log(files);
-      setCurrentFileId(files[0].id);
-    }
-  }, [currentFileId, files])
+  
 
   return (
-    <div className="h-full w-full z-0">
+    <div className="h-full w-full flex flex-col z-0">
       {/* Active Users Badge */}
-      <div className="pl-10 flex items-center gap-2 p-2 bg-gray-800 text-xs text-gray-300 border-b border-gray-700">
+      <div className="px-4 flex items-center gap-2 p-2 bg-gray-900 text-xs text-gray-300 border-b border-gray-800 shrink-0">
         <span className="font-semibold text-gray-400">Connected Users ({activeUsers.size + 1}) :</span>
         <span className="px-2 py-0.5 rounded bg-blue-600 font-semibold text-white">
           {username || "Anonymous"} (You)
@@ -106,20 +102,22 @@ function MonacoEditor({
           ))}
       </div>
       {/* Editor Component */}
-      <Editor
-        height="81.9vh"
-        language={language.toLowerCase()}
-        defaultValue="console.log('Hello World')"
-        theme="vs-dark"
-        options={{
-          suggestOnTriggerCharacters: true,
-          quickSuggestions: true,
-          wordBasedSuggestions: "currentDocument",
-          acceptSuggestionOnEnter: "on",
-          tabCompletion: "on",
-        }}
-        onMount={(editorInstance) => setEditor(editorInstance)}
-      />
+      <div className="flex-1 w-full min-h-0">
+        <Editor
+          height="100%"
+          language={language.toLowerCase()}
+          defaultValue="console.log('Hello World')"
+          theme="vs-dark"
+          options={{
+            suggestOnTriggerCharacters: true,
+            quickSuggestions: true,
+            wordBasedSuggestions: "currentDocument",
+            acceptSuggestionOnEnter: "on",
+            tabCompletion: "on",
+          }}
+          onMount={(editorInstance) => setEditor(editorInstance)}
+        />
+      </div>
     </div>  
   );
 }

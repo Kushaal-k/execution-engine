@@ -29,8 +29,14 @@ export class Workspace {
             updatedAt: Date.now()
         })
 
+        //??: TEMPORARY FILE CREATION
            this.createFile(
                 "index.js",
+                "js",
+                null
+            );
+           this.createFile(
+                "new.js",
                 "js",
                 null
             );

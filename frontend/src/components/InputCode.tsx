@@ -1,10 +1,9 @@
 import { useState } from "react";
-import MonacoEditor from "./MonacoEditor"
-import Sidebar from "./Sidebar";
 import Topbar from "./Topbar";
 import OutputArea from "./OutputArea";
 import InputArea from "./InputArea";
 import {socket} from "../api/socket.js"
+import IDE from "./IDE";
 
 export type Status = "Queued" | "Pending" | "Completed" | "Failed";
 
@@ -88,9 +87,8 @@ function InputCode() {
     return (
         <div className="flex items-center justify-center flex-col bg-gray-700">
             <Topbar language={language} setLanguage={setLanguage} handleSubmit={handleSubmit} loading={loading} status={status} username={username} setUsername={setUsername}/>
-            <Sidebar/>
             <div className="relative w-full">
-                <MonacoEditor language={language} username={username}/>
+                <IDE username={username} language={language}></IDE>
                 <div className="absolute bottom-0 w-full z-20">
                     <InputArea stdin={stdin} setStdin={setStdin} />
                 </div>
