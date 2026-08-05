@@ -5,19 +5,28 @@ import Sidebar from "./Sidebar";
 
 function IDE({
     username,
-    language
-}: {username: string, language: string}) {
+    language,
+    setCode,
+    setLanguage
+}: {username: string, language: string, setCode?: (code: string) => void, setLanguage: (language: string) => void}) {
 
     const [currentFileId, setCurrentFileId] = useState<string>("");
+    // const [currentFileLanguage, setCurrentFileLanguage] = useState<string>("");
     const [roomId] = useState<string>("room-1");
 
     const { doc, files, folders, workspaceMetadata } = useYjsSync(roomId, username);
 
     useEffect(() => {
         if(!currentFileId && files.length > 0) {
-            console.log(files);
             setCurrentFileId(files[0].id);
         }
+
+        const activeFile = files.find(f => f.id === currentFileId);
+
+        if(activeFile) {
+            setLanguage(activeFile.language || "javascript");
+        }
+
     }, [currentFileId, files]);
 
     return (
@@ -35,6 +44,7 @@ function IDE({
                     username={username}
                     currentFileId={currentFileId}
                     doc={doc}
+                    setCode={setCode}
                 />
             </div>
         </div>

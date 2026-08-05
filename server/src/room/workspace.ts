@@ -106,7 +106,7 @@ export class Workspace {
         return this.doc.getText(fileId);
     }
 
-    createFolder(folderName: string, parentFolderId: string) {
+    createFolder(folderName: string, parentFolderId: string | null) {
         const folderId = crypto.randomUUID();
 
         const folderData = {

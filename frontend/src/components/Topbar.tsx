@@ -1,9 +1,6 @@
 import type { Dispatch, SetStateAction, MouseEventHandler } from "react";
-import { Select } from "@headlessui/react";
 
 interface ITopBarProps {
-    language: string,
-    setLanguage: Dispatch<SetStateAction<string>>,
     loading: boolean,
     handleSubmit: MouseEventHandler<HTMLButtonElement>,
     status: string,
@@ -11,7 +8,7 @@ interface ITopBarProps {
     setUsername: Dispatch<SetStateAction<string>>
 }
 
-function Topbar({ language, setLanguage, handleSubmit, loading, status, username, setUsername } : ITopBarProps) {
+function Topbar({  handleSubmit, loading, status, username, setUsername } : ITopBarProps) {
     
     return (
         <div className="z-2 top-0 w-full h-16 bg-blue-900 flex items-center justify-between px-8">
@@ -27,13 +24,6 @@ function Topbar({ language, setLanguage, handleSubmit, loading, status, username
                     onChange={(e) => setUsername(e.target.value)}
                     className="border border-gray-500 px-4 py-2 rounded focus:outline-none focus-visible:ring-2 focus-visible:ring-white text-black"
                 />
-            </div>
-            <div>
-                <Select aria-label="Select programming language" value={language} onChange={(e) => setLanguage(e.target.value)} data-focus data-hover className="border border-gray-500 px-8 py-2 rounded focus:outline-none focus-visible:ring-2 focus-visible:ring-white">
-                    <option className="text-black">Javascript</option>
-                    <option className="text-black">Python</option>
-                    <option className="text-black">Cpp</option>
-                </Select>
             </div>
             <div>
                 <button 

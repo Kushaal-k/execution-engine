@@ -11,7 +11,8 @@ interface MonacoEditorProps {
   username: string;
   roomId?: string;
   currentFileId: string;
-  doc: Doc
+  doc: Doc;
+  setCode?: (code: string) => void;
 }
 
 //Throttle for real-time updates for collaborative cursor or selections
@@ -33,6 +34,7 @@ function MonacoEditor({
   username,
   currentFileId,
   doc,
+  setCode,
 }: MonacoEditorProps) {
 
   //Editor ref after mount
@@ -50,6 +52,23 @@ function MonacoEditor({
   
   const { activeUsers } = useRemotePresence(editor, decorationRef);
   const ytext = currentFileId ? doc.getText(currentFileId) : null;
+
+  // Sync Yjs text with parent code state
+  useEffect(() => {
+    if(!ytext || !setCode) return;
+
+    setCode(ytext.toString());
+
+    const handleYtextChange = () => {
+      setCode(ytext.toString());
+    };
+
+    ytext.observe(handleYtextChange);
+
+    return () => {
+      ytext.unobserve(handleYtextChange);
+    };
+  }, [ytext, setCode]);
 
   useEffect(() => {
     if(!editor || !ytext) return;

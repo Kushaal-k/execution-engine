@@ -2,7 +2,7 @@ import { useState } from "react";
 import Topbar from "./Topbar";
 import OutputArea from "./OutputArea";
 import InputArea from "./InputArea";
-import {socket} from "../api/socket.js"
+import { socket } from "../api/socket.js"
 import IDE from "./IDE";
 
 export type Status = "Queued" | "Pending" | "Completed" | "Failed";
@@ -17,7 +17,7 @@ type executionResponse =  {
 }
 
 function InputCode() {
-    const [code] = useState<string>('console.log("Hello World")');
+    const [code, setCode] = useState<string>('console.log("Hello World")');
     const [language, setLanguage] = useState<string>('Javascript');
     const [loading, setLoading] = useState<boolean>(false);
     const [stdin, setStdin] = useState<string>('');
@@ -29,7 +29,6 @@ function InputCode() {
 
     const handleSubmit = async () => {
         if(code.trim()){
-            console.log('Button clicked!!')
             setLoading(true);
             try {
                 const response = await fetch("http://localhost:5000/api/response", {
@@ -86,9 +85,9 @@ function InputCode() {
 
     return (
         <div className="flex items-center justify-center flex-col bg-gray-700">
-            <Topbar language={language} setLanguage={setLanguage} handleSubmit={handleSubmit} loading={loading} status={status} username={username} setUsername={setUsername}/>
+            <Topbar handleSubmit={handleSubmit} loading={loading} status={status} username={username} setUsername={setUsername}/>
             <div className="relative w-full">
-                <IDE username={username} language={language}></IDE>
+                <IDE username={username} language={language} setCode={setCode} setLanguage={setLanguage} />
                 <div className="absolute bottom-0 w-full z-20">
                     <InputArea stdin={stdin} setStdin={setStdin} />
                 </div>

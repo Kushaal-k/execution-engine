@@ -52,6 +52,86 @@ export function registerSocketHandlers(io: Server<ClientToServerEvents, ServerTo
                 user
             })
         })
+
+        socket.on('create-file', (fileName: string, language: string, parentFolderId: string | null) => {
+            const roomId = socket.data.roomId;
+
+            let room = roomManager.getRoom(roomId);
+
+            if(!room){
+                return;
+            }
+
+            const workspace = room.getWorkspace();
+
+            workspace.createFile(fileName, language, parentFolderId);
+
+            io.to(roomId).emit("sync", workspace.getSnapshot());
+        })
+
+        socket.on('delete-file', (fileId: string) => {
+            const roomId = socket.data.roomId;
+
+            let room = roomManager.getRoom(roomId);
+
+            if(!room){
+                return;
+            }
+
+            const workspace = room.getWorkspace();
+
+            workspace.deleteFile(fileId);
+
+            io.to(roomId).emit("sync", workspace.getSnapshot());
+        })
+
+        socket.on('rename-file', (fileId: string, newFileName: string) => {
+            const roomId = socket.data.roomId;
+
+            let room = roomManager.getRoom(roomId);
+
+            if(!room){
+                return;
+            }
+
+            const workspace = room.getWorkspace();
+
+            workspace.renameFile(fileId, newFileName);
+
+            io.to(roomId).emit("sync", workspace.getSnapshot());
+        })
+
+        socket.on('create-folder', (folderName: string, parentFolderId: string | null) => {
+            const roomId = socket.data.roomId;
+
+            let room = roomManager.getRoom(roomId);
+
+            if(!room){
+                return;
+            }
+
+            const workspace = room.getWorkspace();
+
+            workspace.createFolder(folderName, parentFolderId);
+
+            io.to(roomId).emit("sync", workspace.getSnapshot());
+        })
+
+        socket.on('delete-folder', (folderId) => {
+            const roomId = socket.data.roomId;
+
+            let room = roomManager.getRoom(roomId);
+
+            if(!room){
+                return;
+            }
+
+            const workspace = room.getWorkspace();
+
+            workspace.deleteFolder(folderId);
+
+            io.to(roomId).emit("sync", workspace.getSnapshot());
+        })
         
         socket.on('disconnect', () => {
             const roomId = socket.data.roomId;

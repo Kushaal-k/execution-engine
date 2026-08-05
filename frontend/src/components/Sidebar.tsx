@@ -1,6 +1,8 @@
-import { FileBracesCorner, Menu, X, FilePlusCorner } from "lucide-react"
-import { useState } from "react"
-import type { FileMetadata, FolderMetadata, WorkspaceMetadata } from "@execution-engine/shared"
+import { FileBracesCorner, Menu, X, FilePlusCorner } from "lucide-react";
+import { useEffect, useState, useRef } from "react";
+import type { FileMetadata, FolderMetadata, WorkspaceMetadata } from "@execution-engine/shared";
+import { socket2 } from "../api/socket";
+import type { KeyboardEvent } from "react";
 
 interface SidebarProps {
     files?: FileMetadata[];
@@ -10,16 +12,14 @@ interface SidebarProps {
     onSelectFile?: (fileId: string) => void;
 }
 
-const DEFAULT_FILES = [
-    { id: "1", name: "index.html" },
-    { id: "2", name: "style.css" },
-    { id: "3", name: "script.js" }
-];
-
 export function Sidebar({ files = [], folders = [], currentFileId, onSelectFile }: SidebarProps) {
     const [open, setOpen] = useState(true);
+    const [isCreatingFile, setIsCreatingFile] = useState<boolean>(false);
+    const [fileName, setFileName] = useState<string>("");
 
-    const displayFiles = files.length > 0 ? files : DEFAULT_FILES;
+    const inputRef = useRef<HTMLInputElement>(null);
+
+    const displayFiles = files.length > 0 ? files : [];
 
     if (!open) {
         return (
@@ -31,12 +31,64 @@ export function Sidebar({ files = [], folders = [], currentFileId, onSelectFile 
         );
     }
 
+    const createFile = (fileName: string, language: string)  => {
+        socket2.emit('create-file', fileName, language, null);
+    }
+
+    const fileCreation = () => {
+        if(!fileName?.trim()) return;
+
+        const extension = fileName.split(".").pop();
+
+        let detectedLanguage = "javascript";
+
+        if(extension == "cpp") {
+            detectedLanguage = "cpp";
+        }
+        else if(extension == "js") {
+            detectedLanguage = "javascript";
+        }
+        else if(extension == "py") {
+            detectedLanguage = "python";
+        }
+
+        createFile(fileName, detectedLanguage);
+
+        setIsCreatingFile(false);
+        setFileName("");
+    }
+
+    const cancelFileCreation = () => {
+        setIsCreatingFile(false);
+        setFileName("");
+    }
+
+    const handleKeyDown = (e: KeyboardEvent<HTMLInputElement>) => {
+        if(e.key === "Enter") {
+            fileCreation();
+        }
+        if(e.key === "Escape") {
+            cancelFileCreation();
+        }
+    }
+
+    useEffect(() => {
+        if (isCreatingFile) {
+            inputRef.current?.focus();
+        }
+    }, [isCreatingFile]);
+
     return (
         <div className="w-56 h-full bg-gray-900 text-white border-r border-gray-700 flex flex-col shrink-0">
             <div className="p-3 font-semibold text-xs border-b border-gray-700 uppercase flex justify-between items-center text-gray-400">
                 <span>File Explorer</span>
                 <div>
-                    <button className="hover:text-white p-1 rounded">
+                    <button onClick={() => {
+                        setFileName("");
+                        setIsCreatingFile(true);
+                    }} 
+                    className="hover:text-white p-1 rounded"
+                    title="Create File">
                         <FilePlusCorner height={16} width={16}/>
                     </button>
                     <button onClick={() => setOpen(false)} className="hover:text-white p-1 rounded" title="Close Sidebar">
@@ -49,6 +101,27 @@ export function Sidebar({ files = [], folders = [], currentFileId, onSelectFile 
             </div>
             <div className="flex-1 overflow-y-auto p-2">
                 <ul className="flex flex-col gap-1 text-sm">
+                    {isCreatingFile && 
+                        <li 
+                        className="flex items-center gap-2 px-2 py-1 rounded transition-colors text-gray-300 bg-gray-800">
+                            <FileBracesCorner height={16} width={16} className="text-gray-400 shrink-0" />
+                            <input 
+                                ref={inputRef}
+                                className="bg-gray-900 text-white border border-gray-600 rounded px-2 py-0.5 text-xs outline-none focus:border-blue-500 w-full" 
+                                placeholder="filename.js"
+                                value={fileName} 
+                                onChange={(e) => setFileName(e.target.value)} 
+                                onKeyDown={handleKeyDown}
+                                onBlur={() => {
+                                    if (fileName.trim()) {
+                                        fileCreation();
+                                    } else {
+                                        cancelFileCreation();
+                                    }
+                                }}
+                            />
+                        </li>
+                    }
                     {displayFiles.map((file) => (
                         <li
                             key={file.id}

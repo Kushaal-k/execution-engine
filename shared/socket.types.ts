@@ -13,6 +13,11 @@ export interface ClientToServerEvents {
     "presence-update": (presence: Presence) => void;
     "user-left": (userId: string) => void;
     "submit-code": (request: IExecutionRequest) => void;
+    "create-file": (fileName: string, language: string, parentFolderId: string | null) => void;
+    "delete-file": (fileId: string) => void;
+    "rename-file": (fileId: string, newFileName: string) => void;
+    "create-folder": (folderName: string, parentFolderId: string | null) => void;
+    "delete-folder": (folderId: string) => void;
 }
 
 export interface ServerToClientEvents {
