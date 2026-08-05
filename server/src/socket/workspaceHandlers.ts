@@ -41,4 +41,8 @@ export function registerWorkspaceHandlers(socket: TypedSocket, io: TypedServer, 
     socket.on('delete-folder', (folderId: string) => {
         withWorkspace(ws => ws.deleteFolder(folderId));
     });
+
+    socket.on('rename-folder', (folderId: string, newFolderName: string) => {
+        withWorkspace(ws => ws.renameFolder(folderId, newFolderName));
+    })
 }

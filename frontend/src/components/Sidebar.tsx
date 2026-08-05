@@ -1,28 +1,30 @@
-import { FileCode, FilePlus, ChevronLeft, ChevronRight, Trash2 } from "lucide-react";
+import { FileCode, FilePlus, ChevronLeft, ChevronRight, Trash2, FolderPlus, Folder } from "lucide-react";
 import { useEffect, useState, useRef } from "react";
 import type { FileMetadata, FolderMetadata, WorkspaceMetadata } from "@execution-engine/shared";
 import type { KeyboardEvent } from "react";
 import { detectLanguage } from "../utils/languageDetector";
 import { workspaceEvents } from "../api/workspaceEvents";
+import { createTree } from "../utils/workspaceTree";
+import WorkspaceTreeNode from "./WorkspaceTreeNode";
 
 interface SidebarProps {
     files?: FileMetadata[];
     folders?: FolderMetadata[];
     workspaceMetadata?: WorkspaceMetadata;
-    currentFileId?: string;
+    currentFileId: string;
     onSelectFile?: (fileId: string) => void;
 }
 
-export function Sidebar({ files = [], currentFileId, onSelectFile }: SidebarProps) {
+export function Sidebar({ files = [], folders = [], currentFileId, onSelectFile }: SidebarProps) {
     const [open, setOpen] = useState(true);
     const [isCreatingFile, setIsCreatingFile] = useState<boolean>(false);
+    const [isCreatingFolder, setIsCreatingFolder] = useState<boolean>(false);
     const [fileName, setFileName] = useState<string>("");
-    const [renamingFileId, setRenamingFileId] = useState<string>("");
-    const [tempFileName, setTempFileName] = useState<string>("");
+    const [folderName, setFolderName] = useState<string>("");
 
     const inputRef = useRef<HTMLInputElement>(null);
 
-    const displayFiles = Array.isArray(files) ? files.filter(f => f && f.id) : [];
+    const tree = createTree({ files, folders });
 
     const handleFileCreate = () => {
         const trimmed = fileName.trim();
@@ -41,11 +43,29 @@ export function Sidebar({ files = [], currentFileId, onSelectFile }: SidebarProp
         }
     };
 
+    const handleFolderCreate = () => {
+        const trimmed = folderName.trim();
+        if (trimmed) {
+            workspaceEvents.createFolder(trimmed);
+        }
+
+        setIsCreatingFolder(false);
+        setFolderName("");
+    }
+
+    const handleKeyDownFolder = (e: KeyboardEvent<HTMLInputElement>) => {
+        if (e.key === "Enter") handleFolderCreate();
+        if (e.key === "Escape") {
+            setIsCreatingFolder(false);
+            setFolderName("");
+        }
+    }
+
     useEffect(() => {
-        if (isCreatingFile) {
+        if (isCreatingFile || isCreatingFolder) {
             inputRef.current?.focus();
         }
-    }, [isCreatingFile]);
+    }, [isCreatingFile, isCreatingFolder]);
 
     return (
         <aside className={`h-full bg-zinc-950 text-zinc-300 border-r border-zinc-800/80 flex flex-col shrink-0 select-none transition-all duration-200 ${open ? "w-52" : "w-10 items-center py-2.5 text-zinc-500"}`}>
@@ -67,6 +87,18 @@ export function Sidebar({ files = [], currentFileId, onSelectFile }: SidebarProp
                     <div className="px-3 py-2 text-[11px] font-semibold uppercase tracking-wider border-b border-zinc-800/80 flex justify-between items-center text-zinc-500">
                         <span>Explorer</span>
                         <div className="flex items-center gap-0.5">
+                            <button
+                                type="button"
+                                onClick={(e) => {
+                                    e.stopPropagation();
+                                    setIsCreatingFolder(true);
+                                    setFolderName("");
+                                }}
+                                className="hover:text-zinc-100 hover:bg-zinc-900 p-1 rounded transition-colors cursor-pointer"
+                                title="New Folder"
+                            >
+                                <FolderPlus className="w-3.5 h-3.5" />
+                            </button>
                             <button
                                 type="button"
                                 onClick={(e) => {
@@ -93,10 +125,30 @@ export function Sidebar({ files = [], currentFileId, onSelectFile }: SidebarProp
                             </button>
                         </div>
                     </div>
-
                     {/* File List */}
                     <div className="flex-1 overflow-y-auto p-1.5">
                         <ul className="flex flex-col gap-0.5 text-xs font-mono">
+                            {tree.map((node) => (
+                                <WorkspaceTreeNode 
+                                    key={node.id}
+                                    node={node}
+                                    currentFileId={currentFileId}
+                                    onSelectFile={onSelectFile}
+                                />
+                            ))}
+                            {isCreatingFolder && (
+                                <li className="flex items-center gap-2 px-2 py-1 rounded bg-zinc-900 border border-zinc-700">
+                                    <Folder className="w-3.5 h-3.5 text-zinc-400 shrink-0" />
+                                    <input
+                                        ref={inputRef}
+                                        className="bg-transparent text-zinc-100 outline-none text-xs w-full"
+                                        value={folderName}
+                                        onChange={(e) => setFolderName(e.target.value)}
+                                        onKeyDown={handleKeyDownFolder}
+                                        onBlur={handleFolderCreate}
+                                    />
+                                </li>
+                            )}
                             {isCreatingFile && (
                                 <li className="flex items-center gap-2 px-2 py-1 rounded bg-zinc-900 border border-zinc-700">
                                     <FileCode className="w-3.5 h-3.5 text-zinc-400 shrink-0" />
@@ -111,76 +163,6 @@ export function Sidebar({ files = [], currentFileId, onSelectFile }: SidebarProp
                                     />
                                 </li>
                             )}
-                            {displayFiles.map((file) => {
-                                const isActive = file.id === currentFileId;
-                                const isRenaming = file.id === renamingFileId;
-
-                                if (isRenaming) {
-                                    return (
-                                        <li
-                                            key={file.id}
-                                            className="flex items-center gap-2 px-2 py-1 rounded bg-zinc-900 border border-zinc-700"
-                                        >
-                                            <FileCode className="w-3.5 h-3.5 text-zinc-400 shrink-0" />
-                                            <input
-                                                autoFocus
-                                                className="bg-transparent text-zinc-100 outline-none text-xs w-full font-mono"
-                                                value={tempFileName}
-                                                onChange={(e) => setTempFileName(e.target.value)}
-                                                onKeyDown={(e) => {
-                                                    if (e.key === "Enter") {
-                                                        const newName = tempFileName.trim();
-                                                        if (newName && newName !== file.name) {
-                                                            workspaceEvents.renameFile(file.id, newName);
-                                                        }
-                                                        setRenamingFileId("");
-                                                    }
-                                                    if (e.key === "Escape") setRenamingFileId("");
-                                                }}
-                                                onBlur={() => {
-                                                    const newName = tempFileName.trim();
-                                                    if (newName && newName !== file.name) {
-                                                        workspaceEvents.renameFile(file.id, newName);
-                                                    }
-                                                    setRenamingFileId("");
-                                                }}
-                                            />
-                                        </li>
-                                    );
-                                }
-
-                                return (
-                                    <li
-                                        key={file.id}
-                                        onClick={() => onSelectFile?.(file.id)}
-                                        onDoubleClick={() => {
-                                            setRenamingFileId(file.id);
-                                            setTempFileName(file.name);
-                                        }}
-                                        className={`group flex items-center justify-between gap-2 px-2.5 py-1.5 rounded cursor-pointer transition-colors ${
-                                            isActive
-                                                ? "bg-zinc-800 text-zinc-100 font-medium"
-                                                : "text-zinc-400 hover:bg-zinc-900/80 hover:text-zinc-200"
-                                        }`}
-                                    >
-                                        <div className="flex items-center gap-2 truncate min-w-0">
-                                            <FileCode className="w-3.5 h-3.5 text-zinc-500 shrink-0" />
-                                            <span className="truncate text-xs">{file.name || "Untitled"}</span>
-                                        </div>
-                                        <button
-                                            type="button"
-                                            onClick={(e) => {
-                                                e.stopPropagation();
-                                                workspaceEvents.deleteFile(file.id);
-                                            }}
-                                            className="opacity-0 group-hover:opacity-100 text-zinc-500 hover:text-rose-400 p-0.5 rounded transition-opacity cursor-pointer shrink-0"
-                                            title="Delete file"
-                                        >
-                                            <Trash2 className="w-3.5 h-3.5" />
-                                        </button>
-                                    </li>
-                                );
-                            })}
                         </ul>
                     </div>
                 </>
