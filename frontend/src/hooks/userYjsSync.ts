@@ -12,7 +12,7 @@ export function useYjsSync(roomId: string, username: string) {
     useEffect(() => {
         socket2.emit("join-room", roomId, username);
 
-        socket2.on('sync', (workspaceSnapshot: WorkspaceSnapshot) => {
+        const handleSync = (workspaceSnapshot: WorkspaceSnapshot) => {
             const update = new Uint8Array(workspaceSnapshot.state);
 
             setFiles(workspaceSnapshot.files);
@@ -20,21 +20,26 @@ export function useYjsSync(roomId: string, username: string) {
             setWorkspaceMetadata(workspaceSnapshot.metadata);
             
             Y.applyUpdate(doc, update);
-        })
-        
-        socket2.on('update', (state) => {
-            const update = new Uint8Array(state);
+        };
+
+        const handleRemoteUpdate = (state: Uint8Array | ArrayBuffer) => {
+            const update = state instanceof Uint8Array ? state : new Uint8Array(state);
             Y.applyUpdate(doc, update);
-        })
+        };
+
+        socket2.on('sync', handleSync);
+        socket2.on('update', handleRemoteUpdate);
 
         const handleUpdate = (update: Uint8Array) => socket2.emit("update", update);
         doc.on("update", handleUpdate);
         
         return () => {
             doc.off("update", handleUpdate);
-            socket2.off("sync");
-            socket2.off("update");
-        }
+            socket2.off("sync", handleSync);
+            socket2.off("update", handleRemoteUpdate);
+        };
+
+
     }, [doc, roomId, username])
     
     return { doc, files, folders, workspaceMetadata };

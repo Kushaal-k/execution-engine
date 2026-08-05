@@ -5,6 +5,7 @@ import { MonacoBinding } from "y-monaco";
 import * as monaco from "monaco-editor";
 import { useRemotePresence } from "../hooks/useRemotePresence";
 import type { Doc } from "yjs";
+import { Users } from "lucide-react";
 
 interface MonacoEditorProps {
   language: string;
@@ -106,39 +107,59 @@ function MonacoEditor({
     }
   }, [editor, ytext])
 
-  
-
   return (
-    <div className="h-full w-full flex flex-col z-0">
-      {/* Active Users Badge */}
-      <div className="px-4 flex items-center gap-2 p-2 bg-gray-900 text-xs text-gray-300 border-b border-gray-800 shrink-0">
-        <span className="font-semibold text-gray-400">Connected Users ({activeUsers.size + 1}) :</span>
-        <span className="px-2 py-0.5 rounded bg-blue-600 font-semibold text-white">
-          {username || "Anonymous"} (You)
-        </span>
-          {Array.from(activeUsers.values()).map((username, index) => (
-            <span className="px-2 py-0.5 rounded bg-gray-700 text-gray-200" key={index}>{username}</span>
+    <div className="h-full w-full flex flex-col z-0 bg-zinc-950">
+      {/* Active Users Bar */}
+      <div className="px-3 flex items-center gap-3 py-1.5 bg-zinc-950 text-[11px] border-b border-zinc-800/80 shrink-0 select-none text-zinc-400">
+        <div className="flex items-center gap-1.5 font-medium">
+          <Users className="w-3.5 h-3.5 text-zinc-500" />
+          <span>Collaborators ({activeUsers.size + 1}):</span>
+        </div>
+        <div className="flex items-center gap-2 overflow-x-auto">
+          <span className="inline-flex items-center gap-1.5 px-2 py-0.5 rounded bg-zinc-900 border border-zinc-800 text-zinc-200 text-[10px]">
+            <span className="w-1.5 h-1.5 rounded-full bg-emerald-400" />
+            {username || "Anonymous"} (You)
+          </span>
+          {Array.from(activeUsers.values()).map((uname, index) => (
+            <span className="inline-flex items-center gap-1.5 px-2 py-0.5 rounded bg-zinc-900 border border-zinc-800 text-zinc-400 text-[10px]" key={index}>
+              <span className="w-1.5 h-1.5 rounded-full bg-zinc-500" />
+              {uname}
+            </span>
           ))}
+        </div>
       </div>
       {/* Editor Component */}
       <div className="flex-1 w-full min-h-0">
         <Editor
           height="100%"
           language={language.toLowerCase()}
-          defaultValue="console.log('Hello World')"
+          defaultValue="// Write your code here"
           theme="vs-dark"
           options={{
+            automaticLayout: true,
             suggestOnTriggerCharacters: true,
             quickSuggestions: true,
             wordBasedSuggestions: "currentDocument",
             acceptSuggestionOnEnter: "on",
             tabCompletion: "on",
+            fontSize: 13,
+            fontFamily: "ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace",
+            minimap: { enabled: false },
+            padding: { top: 8 },
+            smoothScrolling: true,
+            cursorBlinking: "smooth",
+            cursorSmoothCaretAnimation: "on",
+            renderLineHighlight: "line",
+            scrollBeyondLastLine: false,
           }}
+
           onMount={(editorInstance) => setEditor(editorInstance)}
         />
       </div>
     </div>  
   );
+
 }
 
 export default MonacoEditor;
+

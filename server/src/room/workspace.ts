@@ -32,12 +32,12 @@ export class Workspace {
         //??: TEMPORARY FILE CREATION
            this.createFile(
                 "index.js",
-                "js",
+                "javascript",
                 null
             );
            this.createFile(
                 "new.js",
-                "js",
+                "javascript",
                 null
             );
         //TODO: Refresh updatedAt in future updates

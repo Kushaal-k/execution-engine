@@ -11,7 +11,6 @@ function IDE({
 }: {username: string, language: string, setCode?: (code: string) => void, setLanguage: (language: string) => void}) {
 
     const [currentFileId, setCurrentFileId] = useState<string>("");
-    // const [currentFileLanguage, setCurrentFileLanguage] = useState<string>("");
     const [roomId] = useState<string>("room-1");
 
     const { doc, files, folders, workspaceMetadata } = useYjsSync(roomId, username);
@@ -30,7 +29,7 @@ function IDE({
     }, [currentFileId, files]);
 
     return (
-        <div className="flex flex-row h-[80vh] w-full bg-gray-950 text-gray-100 overflow-hidden relative border-t border-gray-800">
+        <div className="flex flex-row flex-1 h-full w-full bg-zinc-950 text-zinc-100 overflow-hidden relative">
             <Sidebar
                 files={files}
                 folders={folders}
@@ -38,7 +37,7 @@ function IDE({
                 currentFileId={currentFileId}
                 onSelectFile={(id) => setCurrentFileId(id)}
             />
-            <div className="flex-1 h-full min-w-0">
+            <div className="flex-1 h-full min-w-0 flex flex-col">
                 <MonacoEditor 
                     language={language}
                     username={username}
@@ -49,6 +48,7 @@ function IDE({
             </div>
         </div>
     );
+
 }
 
 export default IDE;

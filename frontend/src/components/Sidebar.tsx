@@ -1,4 +1,4 @@
-import { FileBracesCorner, Menu, X, FilePlusCorner } from "lucide-react";
+import { FileCode, FilePlus, ChevronLeft, ChevronRight } from "lucide-react";
 import { useEffect, useState, useRef } from "react";
 import type { FileMetadata, FolderMetadata, WorkspaceMetadata } from "@execution-engine/shared";
 import { socket2 } from "../api/socket";
@@ -12,43 +12,31 @@ interface SidebarProps {
     onSelectFile?: (fileId: string) => void;
 }
 
-export function Sidebar({ files = [], folders = [], currentFileId, onSelectFile }: SidebarProps) {
+export function Sidebar({ files = [], currentFileId, onSelectFile }: SidebarProps) {
     const [open, setOpen] = useState(true);
     const [isCreatingFile, setIsCreatingFile] = useState<boolean>(false);
     const [fileName, setFileName] = useState<string>("");
 
     const inputRef = useRef<HTMLInputElement>(null);
 
-    const displayFiles = files.length > 0 ? files : [];
+    const displayFiles = Array.isArray(files) ? files.filter(f => f && f.id) : [];
 
-    if (!open) {
-        return (
-            <div className="w-10 h-full bg-gray-900 border-r border-gray-700 flex flex-col items-center py-2 text-white shrink-0">
-                <button onClick={() => setOpen(true)} className="p-1 hover:bg-gray-800 rounded" title="Open Sidebar">
-                    <Menu height={18} width={18} />
-                </button>
-            </div>
-        );
-    }
-
-    const createFile = (fileName: string, language: string)  => {
+    const createFile = (fileName: string, language: string) => {
         socket2.emit('create-file', fileName, language, null);
-    }
+    };
 
     const fileCreation = () => {
-        if(!fileName?.trim()) return;
+        if (!fileName?.trim()) return;
 
         const extension = fileName.split(".").pop();
 
         let detectedLanguage = "javascript";
 
-        if(extension == "cpp") {
+        if (extension === "cpp" || extension === "c") {
             detectedLanguage = "cpp";
-        }
-        else if(extension == "js") {
+        } else if (extension === "js" || extension === "ts" || extension === "jsx" || extension === "tsx") {
             detectedLanguage = "javascript";
-        }
-        else if(extension == "py") {
+        } else if (extension === "py") {
             detectedLanguage = "python";
         }
 
@@ -56,21 +44,21 @@ export function Sidebar({ files = [], folders = [], currentFileId, onSelectFile 
 
         setIsCreatingFile(false);
         setFileName("");
-    }
+    };
 
     const cancelFileCreation = () => {
         setIsCreatingFile(false);
         setFileName("");
-    }
+    };
 
     const handleKeyDown = (e: KeyboardEvent<HTMLInputElement>) => {
-        if(e.key === "Enter") {
+        if (e.key === "Enter") {
             fileCreation();
         }
-        if(e.key === "Escape") {
+        if (e.key === "Escape") {
             cancelFileCreation();
         }
-    }
+    };
 
     useEffect(() => {
         if (isCreatingFile) {
@@ -79,66 +67,97 @@ export function Sidebar({ files = [], folders = [], currentFileId, onSelectFile 
     }, [isCreatingFile]);
 
     return (
-        <div className="w-56 h-full bg-gray-900 text-white border-r border-gray-700 flex flex-col shrink-0">
-            <div className="p-3 font-semibold text-xs border-b border-gray-700 uppercase flex justify-between items-center text-gray-400">
-                <span>File Explorer</span>
-                <div>
-                    <button onClick={() => {
-                        setFileName("");
-                        setIsCreatingFile(true);
-                    }} 
-                    className="hover:text-white p-1 rounded"
-                    title="Create File">
-                        <FilePlusCorner height={16} width={16}/>
-                    </button>
-                    <button onClick={() => setOpen(false)} className="hover:text-white p-1 rounded" title="Close Sidebar">
-                        <X height={16} width={16} />
-                    </button>
-                </div>
-            </div>
-            <div className="p-2 border-b border-gray-800 text-xs font-semibold text-gray-400 uppercase">
-                Project
-            </div>
-            <div className="flex-1 overflow-y-auto p-2">
-                <ul className="flex flex-col gap-1 text-sm">
-                    {isCreatingFile && 
-                        <li 
-                        className="flex items-center gap-2 px-2 py-1 rounded transition-colors text-gray-300 bg-gray-800">
-                            <FileBracesCorner height={16} width={16} className="text-gray-400 shrink-0" />
-                            <input 
-                                ref={inputRef}
-                                className="bg-gray-900 text-white border border-gray-600 rounded px-2 py-0.5 text-xs outline-none focus:border-blue-500 w-full" 
-                                placeholder="filename.js"
-                                value={fileName} 
-                                onChange={(e) => setFileName(e.target.value)} 
-                                onKeyDown={handleKeyDown}
-                                onBlur={() => {
-                                    if (fileName.trim()) {
-                                        fileCreation();
-                                    } else {
-                                        cancelFileCreation();
-                                    }
+        <aside className={`h-full bg-zinc-950 text-zinc-300 border-r border-zinc-800/80 flex flex-col shrink-0 select-none transition-all duration-200 ${open ? "w-52" : "w-10 items-center py-2.5 text-zinc-500"}`}>
+            {!open ? (
+                <button
+                    type="button"
+                    onClick={(e) => {
+                        e.stopPropagation();
+                        setOpen(true);
+                    }}
+                    className="p-1.5 hover:bg-zinc-900 hover:text-zinc-200 rounded transition-colors cursor-pointer"
+                    title="Open Sidebar"
+                >
+                    <ChevronRight className="w-4 h-4" />
+                </button>
+            ) : (
+                <>
+                    {/* Header */}
+                    <div className="px-3 py-2 text-[11px] font-semibold uppercase tracking-wider border-b border-zinc-800/80 flex justify-between items-center text-zinc-500">
+                        <span>Explorer</span>
+                        <div className="flex items-center gap-0.5">
+                            <button
+                                type="button"
+                                onClick={(e) => {
+                                    e.stopPropagation();
+                                    setFileName("");
+                                    setIsCreatingFile(true);
                                 }}
-                            />
-                        </li>
-                    }
-                    {displayFiles.map((file) => (
-                        <li
-                            key={file.id}
-                            onClick={() => onSelectFile && onSelectFile(file.id)}
-                            className={`flex items-center gap-2 px-3 py-2 rounded cursor-pointer transition-colors ${
-                                file.id === currentFileId
-                                    ? "bg-blue-600/30 text-blue-300 font-medium"
-                                    : "text-gray-300 hover:bg-gray-800 hover:text-white"
-                            }`}
-                        >
-                            <FileBracesCorner height={16} width={16} className="text-gray-400 shrink-0" />
-                            <span className="truncate">{file.name}</span>
-                        </li>
-                    ))}
-                </ul>
-            </div>
-        </div>
+                                className="hover:text-zinc-100 hover:bg-zinc-900 p-1 rounded transition-colors cursor-pointer"
+                                title="New File"
+                            >
+                                <FilePlus className="w-3.5 h-3.5" />
+                            </button>
+                            <button
+                                type="button"
+                                onClick={(e) => {
+                                    e.stopPropagation();
+                                    setIsCreatingFile(false);
+                                    setOpen(false);
+                                }}
+                                className="hover:text-zinc-100 hover:bg-zinc-900 p-1 rounded transition-colors cursor-pointer"
+                                title="Collapse"
+                            >
+                                <ChevronLeft className="w-3.5 h-3.5" />
+                            </button>
+                        </div>
+                    </div>
+
+                    {/* File List */}
+                    <div className="flex-1 overflow-y-auto p-1.5">
+                        <ul className="flex flex-col gap-0.5 text-xs font-mono">
+                            {isCreatingFile && (
+                                <li className="flex items-center gap-2 px-2 py-1 rounded bg-zinc-900 border border-zinc-700">
+                                    <FileCode className="w-3.5 h-3.5 text-zinc-400 shrink-0" />
+                                    <input
+                                        ref={inputRef}
+                                        className="bg-transparent text-zinc-100 outline-none text-xs w-full"
+                                        placeholder="filename.js"
+                                        value={fileName}
+                                        onChange={(e) => setFileName(e.target.value)}
+                                        onKeyDown={handleKeyDown}
+                                        onBlur={() => {
+                                            if (fileName.trim()) {
+                                                fileCreation();
+                                            } else {
+                                                cancelFileCreation();
+                                            }
+                                        }}
+                                    />
+                                </li>
+                            )}
+                            {displayFiles.map((file) => {
+                                const isActive = file.id === currentFileId;
+                                return (
+                                    <li
+                                        key={file.id}
+                                        onClick={() => onSelectFile && onSelectFile(file.id)}
+                                        className={`flex items-center gap-2 px-2.5 py-1.5 rounded cursor-pointer transition-colors ${
+                                            isActive
+                                                ? "bg-zinc-800 text-zinc-100 font-medium"
+                                                : "text-zinc-400 hover:bg-zinc-900/80 hover:text-zinc-200"
+                                        }`}
+                                    >
+                                        <FileCode className="w-3.5 h-3.5 text-zinc-500 shrink-0" />
+                                        <span className="truncate text-xs">{file.name || "Untitled"}</span>
+                                    </li>
+                                );
+                            })}
+                        </ul>
+                    </div>
+                </>
+            )}
+        </aside>
     );
 }
 
