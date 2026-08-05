@@ -2,6 +2,7 @@ import { useState, useEffect } from "react";
 import { useYjsSync } from "../hooks/userYjsSync";
 import MonacoEditor from "./MonacoEditor";
 import Sidebar from "./Sidebar";
+import { detectLanguage } from "../utils/languageDetector";
 
 function IDE({
     username,
@@ -20,13 +21,15 @@ function IDE({
             setCurrentFileId(files[0].id);
         }
 
-        const activeFile = files.find(f => f.id === currentFileId);
+        const activeFile = files.find(f => f && f.id === currentFileId);
 
         if(activeFile) {
-            setLanguage(activeFile.language || "javascript");
+            const detected = detectLanguage(activeFile.name, activeFile.language);
+            setLanguage(detected);
         }
 
-    }, [currentFileId, files]);
+    }, [currentFileId, files, setLanguage]);
+
 
     return (
         <div className="flex flex-row flex-1 h-full w-full bg-zinc-950 text-zinc-100 overflow-hidden relative">

@@ -1,8 +1,9 @@
-import { FileCode, FilePlus, ChevronLeft, ChevronRight } from "lucide-react";
+import { FileCode, FilePlus, ChevronLeft, ChevronRight, Trash2 } from "lucide-react";
 import { useEffect, useState, useRef } from "react";
 import type { FileMetadata, FolderMetadata, WorkspaceMetadata } from "@execution-engine/shared";
 import { socket2 } from "../api/socket";
 import type { KeyboardEvent } from "react";
+import { detectLanguage } from "../utils/languageDetector";
 
 interface SidebarProps {
     files?: FileMetadata[];
@@ -16,6 +17,8 @@ export function Sidebar({ files = [], currentFileId, onSelectFile }: SidebarProp
     const [open, setOpen] = useState(true);
     const [isCreatingFile, setIsCreatingFile] = useState<boolean>(false);
     const [fileName, setFileName] = useState<string>("");
+    const [renamingFileId, setRenamingFileId] = useState<string>("");
+    const [tempFileName, setTempFileName] = useState<string>("");
 
     const inputRef = useRef<HTMLInputElement>(null);
 
@@ -25,21 +28,14 @@ export function Sidebar({ files = [], currentFileId, onSelectFile }: SidebarProp
         socket2.emit('create-file', fileName, language, null);
     };
 
+    const deleteFile = (fileId: string) => {
+        socket2.emit('delete-file', fileId);
+    }
+
     const fileCreation = () => {
         if (!fileName?.trim()) return;
 
-        const extension = fileName.split(".").pop();
-
-        let detectedLanguage = "javascript";
-
-        if (extension === "cpp" || extension === "c") {
-            detectedLanguage = "cpp";
-        } else if (extension === "js" || extension === "ts" || extension === "jsx" || extension === "tsx") {
-            detectedLanguage = "javascript";
-        } else if (extension === "py") {
-            detectedLanguage = "python";
-        }
-
+        const detectedLanguage = detectLanguage(fileName);
         createFile(fileName, detectedLanguage);
 
         setIsCreatingFile(false);
@@ -51,7 +47,12 @@ export function Sidebar({ files = [], currentFileId, onSelectFile }: SidebarProp
         setFileName("");
     };
 
+    const fileRename = (fileId: string, newFileName: string) => {
+        socket2.emit('rename-file', fileId, newFileName);
+    };
+
     const handleKeyDown = (e: KeyboardEvent<HTMLInputElement>) => {
+
         if (e.key === "Enter") {
             fileCreation();
         }
@@ -139,18 +140,69 @@ export function Sidebar({ files = [], currentFileId, onSelectFile }: SidebarProp
                             {displayFiles.map((file) => {
                                 const isActive = file.id === currentFileId;
                                 return (
+                                    <>
+                                    {file.id === renamingFileId && 
+                                        <li 
+                                            key={file.id} 
+                                            className="flex items-center gap-2 px-2 py-1 rounded bg-zinc-900 border border-zinc-700"
+                                        >
+                                            <FileCode className="w-3.5 h-3.5 text-zinc-400 shrink-0" />
+                                            <input
+                                                autoFocus
+                                                className="bg-transparent text-zinc-100 outline-none text-xs w-full font-mono"
+                                                value={tempFileName}
+                                                onChange={(e) => setTempFileName(e.target.value)}
+                                                onKeyDown={(e) => {
+                                                    if (e.key === "Enter") {
+                                                        if (tempFileName.trim()) {
+                                                            fileRename(file.id, tempFileName.trim());
+                                                        }
+                                                        setRenamingFileId("");
+                                                    }
+                                                    if (e.key === "Escape") {
+                                                        setRenamingFileId("");
+                                                    }
+                                                }}
+                                                onBlur={() => {
+                                                    if (tempFileName.trim() && tempFileName !== file.name) {
+                                                        fileRename(file.id, tempFileName.trim());
+                                                    }
+                                                    setRenamingFileId("");
+                                                }}
+                                            />
+                                        </li>
+                                    }
+                                    {file.id !== renamingFileId &&
                                     <li
                                         key={file.id}
                                         onClick={() => onSelectFile && onSelectFile(file.id)}
-                                        className={`flex items-center gap-2 px-2.5 py-1.5 rounded cursor-pointer transition-colors ${
+                                        className={`group flex items-center justify-between gap-2 px-2.5 py-1.5 rounded cursor-pointer transition-colors ${
                                             isActive
                                                 ? "bg-zinc-800 text-zinc-100 font-medium"
                                                 : "text-zinc-400 hover:bg-zinc-900/80 hover:text-zinc-200"
                                         }`}
+                                        onDoubleClick={() => {
+                                            setRenamingFileId(file.id);
+                                            setTempFileName(file.name);
+                                        }}
                                     >
-                                        <FileCode className="w-3.5 h-3.5 text-zinc-500 shrink-0" />
-                                        <span className="truncate text-xs">{file.name || "Untitled"}</span>
-                                    </li>
+                                        <div className="flex items-center gap-2 truncate min-w-0">
+                                            <FileCode className="w-3.5 h-3.5 text-zinc-500 shrink-0" />
+                                            <span className="truncate text-xs">{file.name || "Untitled"}</span>
+                                        </div>
+                                        <button 
+                                            type="button"
+                                            onClick={(e) => {
+                                                e.stopPropagation();
+                                                deleteFile(file.id);
+                                            }}
+                                            className="opacity-0 group-hover:opacity-100 text-zinc-500 hover:text-rose-400 p-0.5 rounded transition-opacity cursor-pointer shrink-0"
+                                            title="Delete file"
+                                        >
+                                            <Trash2 className="w-3.5 h-3.5" />
+                                        </button>
+                                    </li>}
+                                    </>
                                 );
                             })}
                         </ul>
