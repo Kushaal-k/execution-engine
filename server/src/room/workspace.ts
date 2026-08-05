@@ -42,6 +42,18 @@ export class Workspace {
             );
         //TODO: Refresh updatedAt in future updates
     }
+
+    private isDescendant(candidateParent: string | null, childFolderId: string) {
+        let currentParentId = this.folders.get(childFolderId)?.parentFolderId || null;
+        
+        while(currentParentId) {
+            if(currentParentId === candidateParent) return true;
+
+            currentParentId = this.folders.get(currentParentId)?.parentFolderId || null;
+        }
+
+        return false;
+    }
     
     getFiles(): FileMetadata[] {
         return Array.from(this.files.values());
@@ -80,16 +92,20 @@ export class Workspace {
         ytext.delete(0, ytext.length);
     }
 
-    renameFile(fileId: string, newFileName: string) {
-        const file = this.files.get(fileId)!;
+    renameFile(fileId: string, newFileName: string): boolean {
+        const trimmed = newFileName.trim();
+        const file = this.files.get(fileId);
+        
+        if(!trimmed || !file) return false;
 
         this.files.set(fileId, {
             ...file,
             name: newFileName
         })        
+        return true;
     }
 
-    moveFile(fileId: string, newParentFolderId: string) {
+    moveFile(fileId: string, newParentFolderId: string | null) {
         const file = this.files.get(fileId)!;
 
         this.files.set(fileId, {
@@ -121,25 +137,64 @@ export class Workspace {
     }
     // TODO: Below Folder APIs won't work right - Fix in future
     deleteFolder(folderId: string) {
+
+        const filesToDelete: string[] = [];
+
+        for (const [fileId, file] of this.files.entries()) {
+            if (file.parentFolderId === folderId) {
+                filesToDelete.push(fileId);
+            }
+        }
+
+        filesToDelete.forEach(id => this.deleteFile(id));
+
+        const subfoldersToDelete: string[] = [];
+
+        for (const [childFolderId, folder] of this.folders.entries()) {
+            if (folder.parentFolderId === folderId) {
+                subfoldersToDelete.push(childFolderId);
+            }
+        }
+
+        subfoldersToDelete.forEach(id => this.deleteFolder(id));
+
         this.folders.delete(folderId);
     }
 
-    renameFolder(folderId: string, newName: string) {
+    renameFolder(folderId: string, newFolderName: string) {
+        const trimmedName = newFolderName.trim();
         const folder = this.folders.get(folderId)!;
+
+        if(!trimmedName || !folder) return false;
 
         this.folders.set(folderId, {
             ...folder,
-            name: newName
+            name: trimmedName
         })
+
+        return true;
     }
 
-    moveFolder(folderId: string, newParentFolderId: string) {
+    moveFolder(folderId: string, newParentFolderId: string | null) {
+        if (!this.folders.has(folderId)) return false;
+
         const folder = this.folders.get(folderId)!;
+
+        if(folderId === newParentFolderId) return false;
+        if(newParentFolderId !== null && !this.folders.has(newParentFolderId)) {
+            return false;
+        }
+
+        if(newParentFolderId !== null && this.isDescendant(folderId, newParentFolderId)) {
+            return false;
+        }
 
         this.folders.set(folderId, {
             ...folder,
             parentFolderId: newParentFolderId 
         })
+
+        return true;
     }
 
     getFolder(folderId: string) {
