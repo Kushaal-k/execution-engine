@@ -32,7 +32,7 @@ const LANGUAGE_COMMANDS: Record<
 > = {
     javascript: (code) => ["node", "--input-type=module", "-e", code],
     python: (code) => ["python3", "-c", code],
-    cpp: (code) => ["sh", "-c", `echo '${code.replace(/'/g, "'\\''")}' > /tmp/main.cpp && g++ -o /tmp/main /tmp/main.cpp && /tmp/main`]
+    cpp: (code) => ["sh", "-c", `cat > /tmp/stdin.txt && echo '${code.replace(/'/g, "'\\''")}' > /tmp/main.cpp && g++ -o /tmp/main /tmp/main.cpp && /tmp/main < /tmp/stdin.txt`]
 };
 
 //Check if image exists locally - pull if not
@@ -120,46 +120,18 @@ export default async function executeCode(job_id: string) {
             StdinOnce: true,
         })
 
-        //Stream for input, output and error
+        //Stream for stdin input
         const stream = await container.attach({
             stream: true,
             stdin: true,
-            stdout: true,
-            stderr: true
-        });
-
-        //Demux stream from docker logs to remove unwanted characters
-        const stdoutStream = new PassThrough();
-        const stderr = new PassThrough();
-        docker.modem.demuxStream(stream, stdoutStream, stderr);
-
-        let stdoutData = '', stderrData = '';
-        const MAX_OUTPUT_LENGTH = 1024 * 512; // 512KB limit
-
-        stdoutStream.on('data', chunk => {
-            if (stdoutData.length < MAX_OUTPUT_LENGTH) {
-                stdoutData += chunk.toString();
-                if (stdoutData.length > MAX_OUTPUT_LENGTH) {
-                    stdoutData = stdoutData.substring(0, MAX_OUTPUT_LENGTH) + "\n...[Output Truncated]...";
-                }
-            }
-        });
-
-        stderr.on('data', chunk => {
-            if (stderrData.length < MAX_OUTPUT_LENGTH) {
-                stderrData += chunk.toString();
-                if (stderrData.length > MAX_OUTPUT_LENGTH) {
-                    stderrData = stderrData.substring(0, MAX_OUTPUT_LENGTH) + "\n...[Error Truncated]...";
-                }
-            }
+            stdout: false,
+            stderr: false
         });
 
         await container.start();
 
-        if (stdin) {
-            stream.write(stdin);
-            stream.end();
-        }
+        stream.write(stdin || "");
+        stream.end();
 
         //Checking for time limit
         let isTLE = false;
@@ -174,6 +146,36 @@ export default async function executeCode(job_id: string) {
 
         const data = await container.wait();
         clearTimeout(timer);
+
+        // Fetch execution output logs from Docker container
+        let stdoutData = '', stderrData = '';
+        const MAX_OUTPUT_LENGTH = 1024 * 512; // 512KB limit
+
+        const logsStream = await container.logs({ follow: true, stdout: true, stderr: true });
+        const stdoutStream = new PassThrough();
+        const stderrStream = new PassThrough();
+        docker.modem.demuxStream(logsStream, stdoutStream, stderrStream);
+
+        stdoutStream.on('data', chunk => {
+            if (stdoutData.length < MAX_OUTPUT_LENGTH) {
+                stdoutData += chunk.toString();
+                if (stdoutData.length > MAX_OUTPUT_LENGTH) {
+                    stdoutData = stdoutData.substring(0, MAX_OUTPUT_LENGTH) + "\n...[Output Truncated]...";
+                }
+            }
+        });
+
+        stderrStream.on('data', (chunk: Buffer | string) => {
+            if (stderrData.length < MAX_OUTPUT_LENGTH) {
+                stderrData += chunk.toString();
+                if (stderrData.length > MAX_OUTPUT_LENGTH) {
+                    stderrData = stderrData.substring(0, MAX_OUTPUT_LENGTH) + "\n...[Error Truncated]...";
+                }
+            }
+        });
+
+        await new Promise((res) => logsStream.on('end', res));
+
 
         //check for container - logs - errors - or sudden kill
         const inspectData = await container.inspect();

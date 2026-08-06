@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { Terminal, Copy, Check, Trash2, ChevronDown, ChevronUp, FileInput } from "lucide-react";
 import type { Status } from "./InputCode";
 
@@ -43,6 +43,12 @@ function OutputArea({
         if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`;
         return `${(bytes / (1024 * 1024)).toFixed(2)} MB`;
     };
+
+    useEffect(() => {
+        if (stdout != null || error) {
+            setActiveTab("output");
+        }
+    }, [stdout, error]);
 
     if (isCollapsed) {
         return (
@@ -158,9 +164,9 @@ function OutputArea({
                                 {error}
                             </div>
                         )}
-                        {stdout ? (
+                        {exitCode !== undefined && exitCode !== null ? (
                             <pre className="text-zinc-200 whitespace-pre-wrap leading-relaxed font-mono">
-                                {stdout}
+                                {stdout || ""}
                             </pre>
                         ) : !error ? (
                             <div className="h-full flex items-center justify-center text-zinc-600 text-xs font-mono select-none">

@@ -34,81 +34,107 @@ function WorkspaceTreeNode({ node, depth = 0, currentFileId, onSelectFile }: Tre
         setIsRenaming(false);
     };
 
-    if (isRenaming) {
-        return (
-            <li
-                style={{ paddingLeft: `${depth * 12 + 10}px` }}
-                className="flex items-center gap-2 px-2 py-1 rounded bg-zinc-900 border border-zinc-700"
-            >
-                {node.type === "file" ? (
-                    <FileCode className="w-3.5 h-3.5 text-zinc-400 shrink-0" />
-                ) : (
-                    <Folder className="w-3.5 h-3.5 text-zinc-400 shrink-0" />
-                )}
-                <input
-                    autoFocus
-                    className="bg-transparent text-zinc-100 outline-none text-xs w-full font-mono"
-                    value={tempName}
-                    onChange={(e) => setTempName(e.target.value)}
-                    onKeyDown={(e) => {
-                        if (e.key === "Enter") handleRenameSubmit();
-                        if (e.key === "Escape") setIsRenaming(false);
-                    }}
-                    onBlur={handleRenameSubmit}
-                />
-            </li>
-        );
-    }
-
     const handleFileCreate = (parentFolderId: string) => {
-            const trimmed = fileName.trim();
-            if (trimmed) {
-                workspaceEvents.createFile(trimmed, detectLanguage(trimmed), parentFolderId);
-            }
+        const trimmed = fileName.trim();
+        if (trimmed) {
+            workspaceEvents.createFile(trimmed, detectLanguage(trimmed), parentFolderId);
+        }
+        setIsCreatingFile(false);
+        setFileName("");
+    };
+
+    const handleKeyDown = (e: KeyboardEvent<HTMLInputElement>) => {
+        e.stopPropagation();
+        if (e.key === "Enter") handleFileCreate(node.id);
+        if (e.key === "Escape") {
             setIsCreatingFile(false);
             setFileName("");
-        };
-    
-        const handleKeyDown = (e: KeyboardEvent<HTMLInputElement>) => {
-            if (e.key === "Enter") handleFileCreate(node.id);
-            if (e.key === "Escape") {
-                setIsCreatingFile(false);
-                setFileName("");
-            }
-        };
-    
-        const handleFolderCreate = (parentFolderId: string) => {
-            const trimmed = folderName.trim();
-            if (trimmed) {
-                workspaceEvents.createFolder(trimmed, parentFolderId);
-            }
-    
+        }
+    };
+
+    const handleFolderCreate = (parentFolderId: string) => {
+        const trimmed = folderName.trim();
+        if (trimmed) {
+            workspaceEvents.createFolder(trimmed, parentFolderId);
+        }
+
+        setIsCreatingFolder(false);
+        setFolderName("");
+    };
+
+    const handleKeyDownFolder = (e: KeyboardEvent<HTMLInputElement>) => {
+        e.stopPropagation();
+        if (e.key === "Enter") handleFolderCreate(node.id);
+        if (e.key === "Escape") {
             setIsCreatingFolder(false);
             setFolderName("");
         }
-    
-        const handleKeyDownFolder = (e: KeyboardEvent<HTMLInputElement>) => {
-            if (e.key === "Enter") handleFolderCreate(node.id);
-            if (e.key === "Escape") {
-                setIsCreatingFolder(false);
-                setFolderName("");
-            }
+    };
+
+    useEffect(() => {
+        if (isCreatingFile || isCreatingFolder) {
+            inputRef.current?.focus();
         }
-    
-        useEffect(() => {
-            if (isCreatingFile || isCreatingFolder) {
-                inputRef.current?.focus();
-            }
-        }, [isCreatingFile, isCreatingFolder]);
+    }, [isCreatingFile, isCreatingFolder]);
+
+    if (isRenaming) {
+        return (
+            <li className="flex flex-col">
+                <div
+                    style={{ paddingLeft: `${depth * 12 + (node.type === "file" ? 10 : 6)}px` }}
+                    className="flex items-center gap-2 px-2 py-1 rounded bg-zinc-900 border border-zinc-700 my-0.5"
+                    onClick={(e) => e.stopPropagation()}
+                    onDoubleClick={(e) => e.stopPropagation()}
+                >
+                    {node.type === "file" ? (
+                        <FileCode className="w-3.5 h-3.5 text-zinc-400 shrink-0" />
+                    ) : (
+                        <Folder className="w-3.5 h-3.5 text-zinc-400 shrink-0" />
+                    )}
+                    <input
+                        autoFocus
+                        className="bg-transparent text-zinc-100 outline-none text-xs w-full font-mono"
+                        value={tempName}
+                        onChange={(e) => setTempName(e.target.value)}
+                        onKeyDown={(e) => {
+                            e.stopPropagation();
+                            if (e.key === "Enter") handleRenameSubmit();
+                            if (e.key === "Escape") setIsRenaming(false);
+                        }}
+                        onBlur={handleRenameSubmit}
+                        onClick={(e) => e.stopPropagation()}
+                        onDoubleClick={(e) => e.stopPropagation()}
+                    />
+                </div>
+                {node.type === "folder" && isOpen && node.children && node.children.length > 0 && (
+                    <ul className="flex flex-col gap-0.5">
+                        {node.children.map((child) => (
+                            <WorkspaceTreeNode
+                                key={child.id}
+                                node={child}
+                                depth={depth + 1}
+                                currentFileId={currentFileId}
+                                onSelectFile={onSelectFile}
+                            />
+                        ))}
+                    </ul>
+                )}
+            </li>
+        );
+    }
 
     if (node.type === "file") {
         const isActive = node.id === currentFileId;
         return (
             <li
-                onClick={() => onSelectFile?.(node.id)}
-                onDoubleClick={() => {
-                    setIsRenaming(true);
+                onClick={(e) => {
+                    e.stopPropagation();
+                    onSelectFile?.(node.id);
+                }}
+                onDoubleClick={(e) => {
+                    e.stopPropagation();
                     setTempName(node.name);
+                    setIsRenaming(true);
                 }}
                 style={{ paddingLeft: `${depth * 12 + 10}px` }}
                 className={`group flex items-center justify-between gap-2 py-1.5 pr-2.5 rounded cursor-pointer transition-colors ${
@@ -139,10 +165,14 @@ function WorkspaceTreeNode({ node, depth = 0, currentFileId, onSelectFile }: Tre
     return (
         <li className="flex flex-col">
             <div
-                onClick={() => setIsOpen((open) => !open)}
-                onDoubleClick={() => {
-                    setIsRenaming(true);
+                onClick={(e) => {
+                    e.stopPropagation();
+                    setIsOpen((open) => !open);
+                }}
+                onDoubleClick={(e) => {
+                    e.stopPropagation();
                     setTempName(node.name);
+                    setIsRenaming(true);
                 }}
                 style={{ paddingLeft: `${depth * 12 + 6}px` }}
                 className="group flex items-center justify-between gap-1.5 py-1.5 pr-2.5 rounded cursor-pointer transition-colors text-zinc-400 hover:bg-zinc-900/80 hover:text-zinc-200"
@@ -196,37 +226,40 @@ function WorkspaceTreeNode({ node, depth = 0, currentFileId, onSelectFile }: Tre
             </div>
 
             {isCreatingFolder && (
-                                <li 
-                                className="flex items-center gap-2 px-2 py-1 rounded bg-zinc-900 border border-zinc-700"
-                                style={{ paddingLeft: `${depth * 12 + 6}px` }}
-                                >
-                                    <Folder className="w-3.5 h-3.5 text-zinc-400 shrink-0" />
-                                    <input
-                                        ref={inputRef}
-                                        className="bg-transparent text-zinc-100 outline-none text-xs w-full"
-                                        value={folderName}
-                                        onChange={(e) => setFolderName(e.target.value)}
-                                        onKeyDown={handleKeyDownFolder}
-                                        onBlur={() => handleFolderCreate(node.id)}
-                                    />
-                                </li>
-                            )}
-                            {isCreatingFile && (
-                                <li className="flex items-center gap-2 px-2 py-1 rounded bg-zinc-900 border border-zinc-700"
-                                style={{ paddingLeft: `${depth * 12 + 6}px` }}
-                                >
-                                    <FileCode className="w-3.5 h-3.5 text-zinc-400 shrink-0" />
-                                    <input
-                                        ref={inputRef}
-                                        className="bg-transparent text-zinc-100 outline-none text-xs w-full"
-                                        placeholder="filename.js"
-                                        value={fileName}
-                                        onChange={(e) => setFileName(e.target.value)}
-                                        onKeyDown={handleKeyDown}
-                                        onBlur={() => handleFileCreate(node.id)}
-                                    />
-                                </li>
-                            )}
+                <div 
+                    className="flex items-center gap-2 px-2 py-1 rounded bg-zinc-900 border border-zinc-700"
+                    style={{ paddingLeft: `${(depth + 1) * 12 + 6}px` }}
+                    onClick={(e) => e.stopPropagation()}
+                >
+                    <Folder className="w-3.5 h-3.5 text-zinc-400 shrink-0" />
+                    <input
+                        ref={inputRef}
+                        className="bg-transparent text-zinc-100 outline-none text-xs w-full"
+                        value={folderName}
+                        onChange={(e) => setFolderName(e.target.value)}
+                        onKeyDown={handleKeyDownFolder}
+                        onBlur={() => handleFolderCreate(node.id)}
+                    />
+                </div>
+            )}
+            {isCreatingFile && (
+                <div 
+                    className="flex items-center gap-2 px-2 py-1 rounded bg-zinc-900 border border-zinc-700"
+                    style={{ paddingLeft: `${(depth + 1) * 12 + 6}px` }}
+                    onClick={(e) => e.stopPropagation()}
+                >
+                    <FileCode className="w-3.5 h-3.5 text-zinc-400 shrink-0" />
+                    <input
+                        ref={inputRef}
+                        className="bg-transparent text-zinc-100 outline-none text-xs w-full"
+                        placeholder="filename.js"
+                        value={fileName}
+                        onChange={(e) => setFileName(e.target.value)}
+                        onKeyDown={handleKeyDown}
+                        onBlur={() => handleFileCreate(node.id)}
+                    />
+                </div>
+            )}
 
             {isOpen && node.children && node.children.length > 0 && (
                 <ul className="flex flex-col gap-0.5">

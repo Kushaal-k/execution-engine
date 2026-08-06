@@ -1,5 +1,6 @@
 import type { Dispatch, SetStateAction, MouseEventHandler } from "react";
 import { Play, Loader2, User } from "lucide-react";
+import { useEffect, useState } from "react";
 
 interface ITopBarProps {
     loading: boolean;
@@ -10,6 +11,13 @@ interface ITopBarProps {
 }
 
 function Topbar({ handleSubmit, loading, status, username, setUsername }: ITopBarProps) {
+
+    const [localName, setLocalName] = useState<string>("");
+
+    useEffect(() => {
+        setLocalName(username);
+    }, [username]);
+
     const renderStatusDot = () => {
         const lowerStatus = status?.toLowerCase() || "";
         if (loading || lowerStatus === "pending" || lowerStatus === "queued") {
@@ -57,9 +65,17 @@ function Topbar({ handleSubmit, loading, status, username, setUsername }: ITopBa
                     <input
                         type="text"
                         placeholder="Username"
-                        value={username}
-                        onChange={(e) => setUsername(e.target.value)}
-                        className="pl-7 pr-2.5 py-1 text-xs bg-zinc-900 border border-zinc-800 rounded text-zinc-200 placeholder:text-zinc-500 focus:outline-none focus:border-zinc-700 transition-colors w-32"
+                        value={localName}
+                        onChange={(e) => setLocalName(e.target.value)}
+                        onBlur={() => setUsername(localName)}
+                        onKeyDown={(e) => {
+                            if(e.key === "Enter" || e.key === "Escape"){
+                                setUsername(localName);
+                                e.currentTarget.blur();
+                            }
+                        }}
+                        disabled={username.length > 0}
+                        className="pl-7 pr-2.5 py-1 text-xs bg-zinc-900 border border-zinc-800 rounded text-zinc-200 placeholder:text-zinc-500 focus:outline-none focus:border-zinc-700 transition-colors w-32 disabled:cursor-not-allowed disabled:opacity-60 disabled:bg-zinc-950"
                     />
                 </div>
 

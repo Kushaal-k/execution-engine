@@ -37,6 +37,11 @@ export class Room {
     }
 
     join(socketId: string, username: string) {
+        if(this.users.has(socketId)){
+            const user = this.users.get(socketId);
+            if(user) user.username = username;
+            return;
+        }
         const user: User = {
             username,
             color: this.assignColor()

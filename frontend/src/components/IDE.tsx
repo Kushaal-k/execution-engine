@@ -17,7 +17,8 @@ function IDE({
     const { doc, files, folders, workspaceMetadata } = useYjsSync(roomId, username);
 
     useEffect(() => {
-        if(!currentFileId && files.length > 0) {
+        const fileExists = files.some(f => f && f.id === currentFileId);
+        if((!currentFileId || !fileExists) && files.length > 0) {
             setCurrentFileId(files[0].id);
         }
 

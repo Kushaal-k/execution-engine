@@ -12,13 +12,16 @@ function injectUserStyles(userId: string, color: string) {
 
   styleEl.textContent = `
     .remote-cursor-${userId} {
-      border-left: 2px solid ${color} !important;
+      border-left: 3px solid ${color} !important;
       margin-left: -1px;
       position: relative;
       z-index: 10;
+      box-shadow: 0 0 6px ${color};
     }
     .remote-selection-${userId} {
-      background-color: ${color}55 !important; /* 33% opacity for vibrant color on vs-dark */
+      background-color: ${color}44 !important;
+      outline: 1px solid ${color}88 !important;
+      border-radius: 2px;
     }
   `;
 }
