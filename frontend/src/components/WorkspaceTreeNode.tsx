@@ -226,6 +226,7 @@ function WorkspaceTreeNode({ node, files = [], folders = [], depth = 0, currentF
                     <Folder className="w-3.5 h-3.5 text-zinc-500 shrink-0" />
                     <span className="truncate text-xs font-medium text-zinc-300">{node.name || "Untitled"}</span>
                 </div>
+                <div>
                 <button
                     type="button"
                     onClick={(e) => {
@@ -263,6 +264,7 @@ function WorkspaceTreeNode({ node, files = [], folders = [], depth = 0, currentF
                 >
                     <Trash2 className="w-3.5 h-3.5" />
                 </button>
+                </div>
             </div>
 
             {isCreatingFolder && (
