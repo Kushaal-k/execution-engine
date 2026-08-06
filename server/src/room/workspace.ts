@@ -69,11 +69,29 @@ export class Workspace {
 
     //TODO: Add File system validation - duplicate, and folder inside folder
     createFile(fileName: string, language: string, parentFolderId: string | null) {
+        const trimmedName = fileName.trim();
+
+        if(!trimmedName) {
+            return {
+                fileId: null,
+                error: "File name cannot be empty"
+            }
+        }
+
+        for(const [fileId, file] of this.files) {
+            if(file.name === trimmedName && parentFolderId === file.parentFolderId) {
+                return {
+                    fileId: null,
+                    error: "Duplicate File"
+                };
+            }
+        }
+
         const fileId = crypto.randomUUID();
 
         const fileData = {
             id: fileId,
-            name: fileName,
+            name: trimmedName,
             language,
             parentFolderId
         }
@@ -81,7 +99,10 @@ export class Workspace {
         this.files.set(fileId, fileData);
         this.doc.getText(fileId);
 
-        return fileId;
+        return {
+            fileId,
+            error: ""
+        };
     }
 
     deleteFile(fileId: string) {
@@ -98,10 +119,16 @@ export class Workspace {
         
         if(!trimmed || !file) return false;
 
+        for (const [id, f] of this.files) {
+            if (id !== fileId && f.name === trimmed && f.parentFolderId === file.parentFolderId) {
+                return false;
+            }
+        }
+
         this.files.set(fileId, {
             ...file,
-            name: newFileName
-        })        
+            name: trimmed
+        });        
         return true;
     }
 
@@ -123,19 +150,40 @@ export class Workspace {
     }
 
     createFolder(folderName: string, parentFolderId: string | null) {
+        const trimmedName = folderName.trim();
+
+        if(!trimmedName) {
+            return {
+                folderId: null,
+                error: "Folder name cannot be empty"
+            }
+        }
+
+        for(const [folderId, folder] of this.folders) {
+            if(folder.name === trimmedName && parentFolderId === folder.parentFolderId) {
+                return {
+                    folderId: null,
+                    error: "Duplicate Folder"
+                };
+            }
+        }
+
         const folderId = crypto.randomUUID();
 
         const folderData = {
             id: folderId,
-            name: folderName,
+            name: trimmedName,
             parentFolderId
         }
 
         this.folders.set(folderId, folderData);
 
-        return folderId;
+        return {
+            folderId,
+            error: ""
+        };
     }
-    // TODO: Below Folder APIs won't work right - Fix in future
+
     deleteFolder(folderId: string) {
 
         const filesToDelete: string[] = [];
@@ -161,16 +209,22 @@ export class Workspace {
         this.folders.delete(folderId);
     }
 
-    renameFolder(folderId: string, newFolderName: string) {
+    renameFolder(folderId: string, newFolderName: string): boolean {
         const trimmedName = newFolderName.trim();
-        const folder = this.folders.get(folderId)!;
+        const folder = this.folders.get(folderId);
 
         if(!trimmedName || !folder) return false;
+
+        for (const [id, f] of this.folders) {
+            if (id !== folderId && f.name === trimmedName && f.parentFolderId === folder.parentFolderId) {
+                return false;
+            }
+        }
 
         this.folders.set(folderId, {
             ...folder,
             name: trimmedName
-        })
+        });
 
         return true;
     }

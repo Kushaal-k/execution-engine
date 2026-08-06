@@ -1,4 +1,4 @@
-import { FileCode, FilePlus, ChevronLeft, ChevronRight, Trash2, FolderPlus, Folder } from "lucide-react";
+import { FileCode, FilePlus, ChevronLeft, ChevronRight, FolderPlus, Folder } from "lucide-react";
 import { useEffect, useState, useRef } from "react";
 import type { FileMetadata, FolderMetadata, WorkspaceMetadata } from "@execution-engine/shared";
 import type { KeyboardEvent } from "react";
@@ -26,7 +26,20 @@ export function Sidebar({ files = [], folders = [], currentFileId, onSelectFile 
 
     const tree = createTree({ files, folders });
 
+    const trimmedFileName = fileName.trim();
+    const isDuplicateFile = trimmedFileName.length > 0 && (
+        files.some(f => f.parentFolderId === null && f.name.toLowerCase() === trimmedFileName.toLowerCase()) ||
+        folders.some(f => f.parentFolderId === null && f.name.toLowerCase() === trimmedFileName.toLowerCase())
+    );
+
+    const trimmedFolderName = folderName.trim();
+    const isDuplicateFolder = trimmedFolderName.length > 0 && (
+        files.some(f => f.parentFolderId === null && f.name.toLowerCase() === trimmedFolderName.toLowerCase()) ||
+        folders.some(f => f.parentFolderId === null && f.name.toLowerCase() === trimmedFolderName.toLowerCase())
+    );
+
     const handleFileCreate = () => {
+        if (isDuplicateFile) return;
         const trimmed = fileName.trim();
         if (trimmed) {
             workspaceEvents.createFile(trimmed, detectLanguage(trimmed), null);
@@ -44,14 +57,14 @@ export function Sidebar({ files = [], folders = [], currentFileId, onSelectFile 
     };
 
     const handleFolderCreate = () => {
+        if (isDuplicateFolder) return;
         const trimmed = folderName.trim();
         if (trimmed) {
             workspaceEvents.createFolder(trimmed);
         }
-
         setIsCreatingFolder(false);
         setFolderName("");
-    }
+    };
 
     const handleKeyDownFolder = (e: KeyboardEvent<HTMLInputElement>) => {
         if (e.key === "Enter") handleFolderCreate();
@@ -59,7 +72,7 @@ export function Sidebar({ files = [], folders = [], currentFileId, onSelectFile 
             setIsCreatingFolder(false);
             setFolderName("");
         }
-    }
+    };
 
     useEffect(() => {
         if (isCreatingFile || isCreatingFolder) {
@@ -132,35 +145,55 @@ export function Sidebar({ files = [], folders = [], currentFileId, onSelectFile 
                                 <WorkspaceTreeNode 
                                     key={node.id}
                                     node={node}
+                                    files={files}
+                                    folders={folders}
                                     currentFileId={currentFileId}
                                     onSelectFile={onSelectFile}
                                 />
                             ))}
                             {isCreatingFolder && (
-                                <li className="flex items-center gap-2 px-2 py-1 rounded bg-zinc-900 border border-zinc-700">
-                                    <Folder className="w-3.5 h-3.5 text-zinc-400 shrink-0" />
-                                    <input
-                                        ref={inputRef}
-                                        className="bg-transparent text-zinc-100 outline-none text-xs w-full"
-                                        value={folderName}
-                                        onChange={(e) => setFolderName(e.target.value)}
-                                        onKeyDown={handleKeyDownFolder}
-                                        onBlur={handleFolderCreate}
-                                    />
+                                <li className="relative flex flex-col my-0.5">
+                                    <div className={`flex items-center gap-2 px-2 py-1 rounded bg-zinc-900 border transition-colors ${
+                                        isDuplicateFolder ? "border-rose-500 bg-rose-950/20" : "border-zinc-700"
+                                    }`}>
+                                        <Folder className="w-3.5 h-3.5 text-zinc-400 shrink-0" />
+                                        <input
+                                            ref={inputRef}
+                                            className="bg-transparent text-zinc-100 outline-none text-xs w-full font-mono"
+                                            value={folderName}
+                                            onChange={(e) => setFolderName(e.target.value)}
+                                            onKeyDown={handleKeyDownFolder}
+                                            onBlur={handleFolderCreate}
+                                        />
+                                    </div>
+                                    {isDuplicateFolder && (
+                                        <div className="absolute left-0 right-0 top-full mt-1 z-50 p-2 bg-rose-950/95 border border-rose-700/80 rounded shadow-xl text-[10px] text-rose-200 leading-tight font-sans select-none break-words">
+                                            A file or folder '{trimmedFolderName}' already exists at this location. Please choose a different name.
+                                        </div>
+                                    )}
                                 </li>
                             )}
                             {isCreatingFile && (
-                                <li className="flex items-center gap-2 px-2 py-1 rounded bg-zinc-900 border border-zinc-700">
-                                    <FileCode className="w-3.5 h-3.5 text-zinc-400 shrink-0" />
-                                    <input
-                                        ref={inputRef}
-                                        className="bg-transparent text-zinc-100 outline-none text-xs w-full"
-                                        placeholder="filename.js"
-                                        value={fileName}
-                                        onChange={(e) => setFileName(e.target.value)}
-                                        onKeyDown={handleKeyDown}
-                                        onBlur={handleFileCreate}
-                                    />
+                                <li className="relative flex flex-col my-0.5">
+                                    <div className={`flex items-center gap-2 px-2 py-1 rounded bg-zinc-900 border transition-colors ${
+                                        isDuplicateFile ? "border-rose-500 bg-rose-950/20" : "border-zinc-700"
+                                    }`}>
+                                        <FileCode className="w-3.5 h-3.5 text-zinc-400 shrink-0" />
+                                        <input
+                                            ref={inputRef}
+                                            className="bg-transparent text-zinc-100 outline-none text-xs w-full font-mono"
+                                            placeholder="filename.js"
+                                            value={fileName}
+                                            onChange={(e) => setFileName(e.target.value)}
+                                            onKeyDown={handleKeyDown}
+                                            onBlur={handleFileCreate}
+                                        />
+                                    </div>
+                                    {isDuplicateFile && (
+                                        <div className="absolute left-0 right-0 top-full mt-1 z-50 p-2 bg-rose-950/95 border border-rose-700/80 rounded shadow-xl text-[10px] text-rose-200 leading-tight font-sans select-none break-words">
+                                            A file or folder '{trimmedFileName}' already exists at this location. Please choose a different name.
+                                        </div>
+                                    )}
                                 </li>
                             )}
                         </ul>
