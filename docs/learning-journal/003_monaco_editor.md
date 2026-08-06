@@ -1,79 +1,54 @@
-# 003 - Monaco Editor Integration
+# 003 - Browser IDE Integration (Monaco Editor)
 
-## Problem
+## Overview & Problem Statement
 
-A standard HTML `<textarea>` or basic input element lacks syntax highlighting, code indentation, line numbering, multi-language support, and diagnostic capabilities. To deliver an authentic IDE experience, the frontend required a production-grade code editor component capable of supporting modern code editing and future collaborative extensions.
+Standard HTML `<textarea>` elements lack syntax highlighting, indentation handling, line numbering, and granular event APIs required for modern browser-based IDEs. To provide a professional developer environment and prepare for multi-user real-time cursor tracking, Monaco Editor (the core editing engine powering VS Code) was integrated into the client application.
 
-## Goal
-
-Integrate Monaco Editor (the core editor powering Visual Studio Code) into the React frontend to provide syntax highlighting, customizable editor settings, and language selection.
-
-## Architecture & Implementation
-
-Integrated `@monaco-editor/react` into the React application, configuring editor models and theme settings.
-
-### Component Structure
+## System Architecture & Data Flow
 
 ```
-┌────────────────────────────────────────────────────────┐
-│ Topbar (Language Selection: C++, Python, JS, Java)     │
-├────────────────────────────────────────────────────────┤
-│ Monaco Editor Component                                │
-│  ├── Syntax Highlighting (Monaco Tokenizer)            │
-│  ├── Line Numbers & Active Line Highlights             │
-│  └── Code Model (monaco.editor.createModel)            │
-└────────────────────────────────────────────────────────┘
+┌────────────────────────────────────────────────────────────────────────┐
+│ React Application View Layer                                           │
+│ ┌────────────────────────────────────────────────────────────────────┐ │
+│ │ Monaco Editor Container (DOM Element)                              │ │
+│ │ ┌────────────────────────────────────────────────────────────────┐ │ │
+│ │ │ Monaco Text Model (ICodeEditor Instance)                       │ │ │
+│ │ │  ├── Syntax Highlighting & Tokenization Rules                  │ │ │
+│ │ │  ├── Line Numbers, Indentation, & Code Formatting              │ │ │
+│ │ │  └── Viewport Cursor & Selection Range Event Emitters          │ │ │
+│ │ └────────────────────────────────────────────────────────────────┘ │ │
+│ └────────────────────────────────────────────────────────────────────┘ │
+└────────────────────────────────────────────────────────────────────────┘
 ```
 
-### Key Setup Code
+Monaco decouples UI presentation from its underlying Text Model. The React view container mounts the editor instance, listens to text model mutation events, and synchronizes document state with application state.
 
-```tsx
-import Editor from '@monaco-editor/react';
+## Technical Trade-Offs & Design Rationale
 
-export const CodeEditor = ({ language, code, onChange }) => {
-  return (
-    <Editor
-      height="80vh"
-      language={language}
-      theme="vs-dark"
-      value={code}
-      onChange={(value) => onChange(value || '')}
-      options={{
-        fontSize: 14,
-        minimap: { enabled: false },
-        automaticLayout: true,
-        scrollBeyondLastLine: false,
-      }}
-    />
-  );
-};
-```
+| Consideration | Approach | Trade-Off Rationale |
+| :--- | :--- | :--- |
+| **UX & Feature Parity** | Monaco Editor Integration | Delivers industry-standard developer UX including tokenization, keybindings, and formatting. |
+| **API Surface** | Text Model Range APIs | Exposes granular coordinate and decoration APIs required for multi-cursor overlays. |
+| **Footprint & Lifecycle** | Web Worker Assets & Disposal | Introduces ~5MB static assets; requires explicit `editor.dispose()` to prevent DOM leaks. |
 
-## Alternatives Considered
+## Architectural Discussion
 
-| Editor | Pros | Cons | Decision |
-| :--- | :--- | :--- | :--- |
-| **HTML `<textarea>`** | Zero dependencies, lightweight | No syntax highlighting, no line numbers, poor UX | Rejected |
-| **CodeMirror** | Lightweight, highly modular | Smaller default feature set, API differs from VS Code | Rejected |
-| **Monaco Editor** | Powers VS Code, rich decorations API, native multi-language support, ideal for CRDT bindings | Larger JavaScript bundle size, complex API surface | **Selected** |
+- **Decoupling Text Models from Editor Views**: Separating data state (Text Model) from presentation (Editor View) allows application instances to swap active file buffers without destroying or re-mounting the DOM container, optimizing tab-switching performance.
+- **SPA Memory Management**: Monaco editor instances, text models, and event listeners persist in V8 heap memory if not garbage collected. SPA components must explicitly invoke `editor.dispose()` and unsubscribe from model event listeners within component unmount lifecycle hooks.
 
-## Why Monaco Editor?
+## Current Limitations
 
-- **VS Code Ecosystem Familiarity**: Provides familiar keybindings, indentation rules, and language tokenizers out of the box.
-- **Decorations API**: Monaco exposes `editor.deltaDecorations()`, allowing programmatically adding custom CSS classes to lines, inline widgets, and selection highlights (essential for remote cursors).
-- **CRDT Integration Foundation**: Popular real-time collaboration libraries like `y-monaco` natively support Monaco Editor models.
+- The editor only supports single-file editing without project workspace tree views.
+- Collaborative editing is not yet supported; changes are local to the browser.
+- Large initial static bundle size (~5MB Web Worker assets) increases initial load time.
 
-## Tradeoffs & Challenges
+## Future Improvements
 
-- **Bundle Size**: Monaco adds ~2-3MB of JavaScript workers to the frontend bundle.
-- **Layout Resizing**: Monaco requires layout recalculation on window or panel resize, requiring `automaticLayout: true` or manual container resize observers.
+- Integrate Conflict-Free Replicated Data Types (Yjs CRDTs) for multi-user collaborative editing.
+- Build custom hooks to manage WebSocket real-time presence and remote cursor decorations.
+- Add workspace tab switching and project file tree navigation.
 
-## Lessons Learned
+## Key Takeaways
 
-- Choosing an industry-standard editor early prevents costly migrations when adding advanced editor features later.
-- Monaco's rich API surface provided the exact primitives required for multi-user collaboration and cursor decorations added in later iterations.
-
-## Next Steps
-
-- Move code execution into containerized environments (Docker).
-- Connect the frontend editor state to real-time collaboration mechanisms (Yjs & WebSockets).
+- Monaco's Text Model separation enabled fast buffer switching, but required strict component lifecycle cleanup (`dispose()`) to prevent V8 heap leaks in single-page applications.
+- Monaco's range APIs provided the necessary abstractions for downstream collaborative cursor overlays.

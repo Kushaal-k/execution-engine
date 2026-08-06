@@ -1,108 +1,60 @@
-# 013 - Modular Socket Architecture & Workspace Event API
+# 013 - Modular Socket Architecture & Client Workspace Event API
 
-## Problem
+## Overview & Problem Statement
 
-As multi-file editing, folder management, user presence, and real-time cursor sync were added to the platform, `server/src/socket/socket.ts` grew into a monolithic file. Connection lifecycle logic (`join-room`, `disconnect`), presence updates (`presence-update`, cursor tracking), Yjs update broadcasts, and workspace structural mutations (`create-file`, `rename-file`, `delete-file`, `create-folder`, `rename-folder`) were all crammed into a single connection callback.
+As multi-file editing, folder management, user presence, and real-time cursor sync were added, `server/src/socket/socket.ts` grew into a monolithic file mixing session lifecycles, cursor telemetry, Yjs binary delta broadcasts, and file CRUD actions. Server handlers were modularized by domain, and client socket calls were abstracted into a typed workspace event API layer.
 
-On the frontend, components were emitting raw string event names with inline payloads directly over socket instances, introducing code duplication, weak type safety, and fragile maintenance.
-
-## Goal
-
-1. Modularize server socket event handlers into domain-focused handler modules (`lifecycleHandlers.ts`, `presenceHandlers.ts`, `workspaceHandlers.ts`).
-2. Implement a centralized client-side event API layer (`frontend/src/api/workspaceEvents.ts`) paired with shared TypeScript socket type definitions (`shared/socket.types.ts`).
-
-## Architecture & Implementation
-
-### Server Socket Modularization
-
-The server connection entry point (`server/src/socket/socket.ts`) delegates incoming socket connections to domain-specific handler registrars:
+## System Architecture & Data Flow
 
 ```
-┌─────────────────────────────────────────────────────────────┐
-│ server/src/socket/socket.ts (Connection Dispatcher)       │
-└──────────────────────────────┬──────────────────────────────┘
-                               │
-       ┌───────────────────────┼───────────────────────┐
-       ▼                       ▼                       ▼
-┌──────────────────┐  ┌──────────────────┐  ┌────────────────────┐
-│ lifecycleHandlers│  │ presenceHandlers │  │ workspaceHandlers  │
-│  - join-room     │  │  - presence-upd  │  │  - create-file     │
-│  - disconnect    │  │  - yjs-update    │  │  - delete-file     │
-│                  │  │                  │  │  - create-folder   │
-└──────────────────┘  └──────────────────┘  └────────────────────┘
+┌────────────────────────────────────────────────────────────────────────┐
+│ Client UI View Components                                              │
+│  └── Centralized Client API Facade (workspaceEvents.createFile)        │
+└───────────────────────────────────┬────────────────────────────────────┘
+                                    │ Strongly Typed Socket Payload
+                                    ▼
+┌────────────────────────────────────────────────────────────────────────┐
+│ Server Connection Dispatcher (server/src/socket/socket.ts)             │
+│  ├── lifecycleHandlers  (join-room, disconnect, room snapshots)        │
+│  ├── presenceHandlers   (cursor position, selection, Yjs binary sync)  │
+│  └── workspaceHandlers  (create, rename, delete files & folders)       │
+└───────────────────────────────────┬────────────────────────────────────┘
+                                    │
+                                    ▼
+┌────────────────────────────────────────────────────────────────────────┐
+│ Workspace CRDT State Engine                                            │
+└────────────────────────────────────────────────────────────────────────┘
 ```
 
-#### Socket Dispatcher (`server/src/socket/socket.ts`)
+1. **Server Handler Registrars**: Socket connections delegate event listeners to domain-specific registrar modules (`lifecycleHandlers`, `presenceHandlers`, `workspaceHandlers`).
+2. **Workspace Event Handlers**: `workspaceHandlers` executes CRUD actions against `Workspace` instances, handles validation guards (duplicate names), and broadcasts updates to room members.
+3. **Client API Facade**: React components invoke typed wrapper functions (`workspaceEvents.createFile()`) rather than constructing raw `socket.emit()` calls.
 
-```typescript
-import type { Server } from 'socket.io';
-import { RoomManager } from '../room/room-manager.js';
-import type { ClientToServerEvents, ServerToClientEvents } from "../types/types.js";
-import { registerLifecycleHandlers } from './lifecycleHandlers.js';
-import { registerPresenceHandlers } from './presenceHandlers.js';
-import { registerWorkspaceHandlers } from './workspaceHandlers.js';
+## Technical Trade-Offs & Design Rationale
 
-const roomManager = new RoomManager();
+| Consideration | Approach | Trade-Off Rationale |
+| :--- | :--- | :--- |
+| **Server Architecture** | Domain-Driven Registrars | Separates transient telemetry from critical structural file system mutations and room lifecycles. |
+| **Type Safety** | Shared Contract Types | Shared TypeScript event interfaces (`shared/socket.types.ts`) guarantee contract alignment. |
+| **Client Abstraction** | API Facade Pattern | Shields UI components from WebSocket details, simplifying testing and payload modifications. |
 
-export function registerSocketHandlers(io: Server<ClientToServerEvents, ServerToClientEvents>) {
-    io.on("connection", (socket) => {
-        // Room Lifecycle & Session Handlers
-        registerLifecycleHandlers(socket, roomManager);
+## Architectural Discussion
 
-        // Real-Time Document & Cursor Sync
-        registerPresenceHandlers(socket, roomManager);
+- **Abstracting Raw Socket Emissions**: Scattering string-based `socket.emit("event-name", payload)` calls across UI components leads to parameter typos, duplicate payload logic, and fragile refactoring. Abstracting socket calls behind a typed client API module centralizes payload construction and enforces type safety.
+- **Domain-Driven Socket Event Routing**: Grouping handlers by domain responsibility (Session Lifecycle, Telemetry/Presence, Data Mutations) allows the primary connection handler to act as a clean router delegating socket instances to modular registrars.
 
-        // Workspace Structural Mutations
-        registerWorkspaceHandlers(socket, io, roomManager);
-    });
-}
-```
+## Current Limitations
 
-### Module Responsibilities
+- The frontend sidebar UI does not yet render nested folder tree structures visually.
+- Sibling file/folder duplicate name checks need to be enforced across both client forms and server handlers.
 
-1. **`lifecycleHandlers.ts`**: Manages room join events, initial room state snapshot transfers to newly connected clients, and user disconnect cleanup.
-2. **`presenceHandlers.ts`**: Broadcasts live cursor position movements, text selections, and raw Yjs binary updates (`yjs-update`) across active room members.
-3. **`workspaceHandlers.ts`**: Executes file and folder structural CRUD requests against the `Workspace` instance, handles validation errors (e.g. duplicate names), and emits workspace updates to room participants.
+## Future Improvements
 
-### Frontend `workspaceEvents.ts` API Layer
+- Implement an $O(N)$ linear-time tree construction algorithm (`createTree`) and recursive UI tree nodes.
+- Add auto language detection based on file extensions.
+- Support interactive STDIN stream execution in Docker sandboxes.
 
-Client-side socket emissions are encapsulated in typed wrapper functions:
+## Key Takeaways
 
-```typescript
-// frontend/src/api/workspaceEvents.ts
-import { Socket } from "socket.io-client";
-
-export const workspaceEvents = {
-    createFile: (socket: Socket, name: string, language: string, parentFolderId: string | null) => {
-        socket.emit("create-file", { name, language, parentFolderId });
-    },
-    deleteFile: (socket: Socket, fileId: string) => {
-        socket.emit("delete-file", { fileId });
-    },
-    renameFile: (socket: Socket, fileId: string, name: string) => {
-        socket.emit("rename-file", { fileId, name });
-    },
-    createFolder: (socket: Socket, name: string, parentFolderId: string | null) => {
-        socket.emit("create-folder", { name, parentFolderId });
-    },
-    deleteFolder: (socket: Socket, folderId: string) => {
-        socket.emit("delete-folder", { folderId });
-    }
-};
-```
-
-## Key Improvements & Benefits
-
-- **Separation of Concerns**: Decouples presence state, connection management, and file system CRUD into isolated files.
-- **End-to-End Type Safety**: Shared TypeScript interfaces ensure client and server events stay in sync during API modifications.
-- **Clean Component Logic**: React components call `workspaceEvents.createFile()` instead of constructing manual `socket.emit("create-file", ...)` calls.
-
-## Lessons Learned
-
-- Grouping socket event listeners by feature domain prevents handler file growth and simplifies debugging network state.
-- Abstracting raw socket calls behind a typed client API layer shields React UI components from WebSocket protocol details.
-
-## Next Steps
-
-- Build hierarchical tree data structures (`utils/workspaceTree.ts`) and recursive tree UI components (`WorkspaceTreeNode.tsx`).
-- Add auto language detection based on file extensions and duplicate path validation.
+- Categorizing socket handlers keeps server logic maintainable as real-time feature sets grow.
+- Using shared TypeScript contract definitions prevents integration bugs between client and server.

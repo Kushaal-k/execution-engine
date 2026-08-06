@@ -1,61 +1,54 @@
-# 004 - Docker Container Execution
+# 004 - Containerized Execution Sandbox (Docker)
 
-## Problem
+## Overview & Problem Statement
 
-Executing user code directly on the host machine using `spawn()` leaves the host vulnerable to filesystem corruption, privilege escalation, malicious outbound network requests, and resource exhaustion attacks.
+Executing untrusted user code directly on the host operating system exposes backend infrastructure to severe security vulnerabilities, including host filesystem inspection, process fork bombs, unauthorized network outbound calls, and resource exhaustion. To establish strict multi-tenant security boundaries and resource quotas, code execution was isolated within ephemeral Docker containers.
 
-## Goal
-
-Isolate code execution within short-lived, disposable Docker containers configured with strict CPU limits, memory bounds, read-only root filesystems, and disabled network access.
-
-## Architecture & Implementation
-
-Each execution request creates an ephemeral container based on lightweight runtime images (e.g., `python:3.10-slim`, `gcc:latest`, `node:18-alpine`).
-
-### Execution Flow
+## System Architecture & Data Flow
 
 ```
-┌─────────┐      HTTP Request      ┌─────────────┐      Docker CLI / API     ┌────────────────────────┐
-│ Browser │ ─────────────────────> │ API Server  │ ────────────────────────> │ Ephemeral Container    │
-└─────────┘                        └─────────────┘                           │ ├── Read-Only FS       │
-     ▲                                    │                                  │ ├── --memory="128m"    │
-     │            Response                │       Capture stdout/stderr      │ └── --net=none         │
-     └────────────────────────────────────┴──────────────────────────────────┴────────────────────────┘
+┌────────────────────────────────────────────────────────────────────────┐
+│ Host Operating System (Node.js Execution Engine API)                   │
+│                                                                        │
+│   ┌────────────────────────────────────────────────────────────────┐   │
+│   │ Docker Container (Ephemeral Sandbox Environment)               │   │
+│   │  ├── Process Isolation: PID & Mount Namespaces                 │   │
+│   │  ├── Network Isolation: NetworkDisabled = true                 │   │
+│   │  ├── Hardware Boundaries: Control Groups (RAM/CPU Quota)       │   │
+│   │  └── User Boundaries: Non-Root Execution User (UID 1000)       │   │
+│   └────────────────────────────────────────────────────────────────┘   │
+└────────────────────────────────────────────────────────────────────────┘
 ```
 
-### Docker Execution Command
+Incoming execution requests trigger dynamic container creation configured with runtime binaries (`node`, `python3`, `gcc`). Linux Control Groups (cgroups) cap hardware resource consumption, while Linux Namespaces provide file system and process isolation.
 
-```bash
-docker run --rm \
-  --network none \
-  --memory 128m \
-  --cpus 0.5 \
-  -v /tmp/user_code/submission.py:/app/submission.py:ro \
-  python:3.10-slim \
-  python3 /app/submission.py
-```
+## Technical Trade-Offs & Design Rationale
 
-### Key Security Flags Explained
+| Hardening Flag | Setting | Security Impact |
+| :--- | :--- | :--- |
+| **Network Access** | `NetworkDisabled = true` | Eliminates outbound HTTP calls, socket connections, and botnet activity. |
+| **Memory Boundaries** | `Memory = 256MB` | Enforces hard RAM limits to prevent host Out-Of-Memory (OOM) crashing. |
+| **CPU Allocation** | `CpuQuota = 100000` | Prevents infinite single-threaded loops from starving host CPU cores. |
+| **Privilege Model** | `User = "1000"` | Executes container processes under unprivileged users to prevent root escalation. |
 
-- `--rm`: Automatically removes the container container file layer upon exit.
-- `--network none`: Completely disables network interface access inside the container.
-- `--memory 128m`: Enforces a hard memory cap of 128 MB via Linux cgroups; process is killed with OOM if exceeded.
-- `--cpus 0.5`: Restricts container CPU consumption to 50% of a single CPU core.
-- `:ro`: Mounts the source code file as read-only.
+## Architectural Discussion
 
-## Problems & Limitations
+- **Kernel-Level Resource Constraints**: Namespaces provide virtualized process isolation (PID namespace isolates process trees, Mount namespace isolates file systems, Network namespace cuts network interfaces). Cgroups restrict physical resource utilization, placing upper bounds on CPU, RAM, and I/O consumption per container instance.
+- **Container Isolation Depth**: Multi-layered defense policies include enforcing non-root execution (`User: 1000`), disabling networking, setting read-only file systems where feasible, dropping Linux capabilities, enforcing hard cgroup RAM caps, and configuring execution timers to kill hanging containers.
 
-- **Container Spin-Up Overhead**: Instantiating a fresh container for every execution request takes ~500ms to 1.5 seconds depending on host load and image size.
-- **Synchronous Thread Blocking**: Running `docker run` synchronously inside the API handler blocks the Node.js request thread or HTTP response connection for the duration of the execution.
-- **Docker Out-of-Memory (OOM) Handling**: Distinguishing between standard runtime error exit codes and Docker container OOM exits required checking exit status codes (e.g., exit code 137 indicates OOM).
+## Current Limitations
 
-## Lessons Learned
+- Container spawning overhead adds startup latency to synchronous HTTP execution requests.
+- Docker images must be pre-pulled locally on the host machine to avoid execution timeouts.
+- Requests are still processed synchronously in HTTP handlers, tying up API server connections.
 
-- Docker containers provide the necessary isolation boundaries to safely run untrusted code.
-- Ephemeral container creation guarantees clean slate state per execution, but trades off startup performance.
-- Synchronous container execution inside API handlers does not scale under concurrent load and requires asynchronous queuing.
+## Future Improvements
 
-## Next Steps
+- Decouple request ingestion from execution using an asynchronous job queue.
+- Implement background worker pools to process execution jobs asynchronously.
+- Cache warm container pools or pre-warmed runtimes to reduce cold-start execution latency.
 
-- Implement an asynchronous job queue (Redis) to decouple HTTP request handlers from container execution.
-- Explore container pooling or worker pools to eliminate container startup latency.
+## Key Takeaways
+
+- Wrapping execution in Docker containers established true OS-level security boundaries, capping CPU/RAM usage and cutting off network access.
+- Synchronous container creation within HTTP request threads confirmed the need for background task queues.

@@ -1,61 +1,49 @@
-# 001 - Direct System Execution (exec)
+# 001 - Direct Host Execution (child_process.exec)
 
-## Problem
+## Overview & Problem Statement
 
-Building an online code execution engine requires executing untrusted, user-submitted code in languages like Python, C++, and JavaScript from a browser interface. In the initial prototype, the immediate objective was to establish a working request-execution pipeline with minimal infrastructure complexity.
+Building an online code execution engine requires executing untrusted source code across multiple languages (Python, C++, JavaScript) and returning standard output or standard error buffers to the client. In the initial prototype phase, the primary objective was establishing an end-to-end evaluation pipeline with minimal infrastructure complexity.
 
-## Goal
-
-Validate the end-to-end flow: accept code from the browser, execute it on the backend, and return standard output (`stdout`) or standard error (`stderr`) back to the client.
-
-## Architecture & Implementation
-
-The initial implementation used Node.js's built-in `child_process.exec()` function.
-
-### Execution Flow
+## System Architecture & Data Flow
 
 ```
-┌─────────┐      POST /execute      ┌─────────────┐      Write file      ┌────────────────┐
-│ Browser │ ──────────────────────> │ Node.js API │ ───────────────────> │ Temp Disk File │
-└─────────┘                         └─────────────┘                      └────────────────┘
-     ▲                                     │                                     │
-     │            JSON Response            │           exec("python3 ...")       │
-     └─────────────────────────────────────┴─────────────────────────────────────┘
+┌─────────┐      1. POST /execute      ┌─────────────┐      2. Write File      ┌────────────────┐
+│ Browser │ ─────────────────────────> │ Node.js API │ ──────────────────────> │ Temp Disk File │
+└─────────┘                            └─────────────┘                         └────────────────┘
+     ▲                                        │                                         │
+     │        4. Return Output JSON           │       3. exec("python3 /tmp/...")       │
+     └────────────────────────────────────────┴─────────────────────────────────────────┘
 ```
 
-### Backend Workflow
+The server saved incoming source strings to temporary files on the host filesystem, invoked OS CLI compilers and interpreters using `child_process.exec()`, buffered execution output in memory, and returned JSON responses to the client.
 
-1. The API receives the raw source code string and language choice via an HTTP POST request.
-2. The server writes the code to a temporary file on the host filesystem (e.g., `/tmp/submission.py`).
-3. The server executes a shell command using `exec()`:
-   ```javascript
-   const { exec } = require('child_process');
-   exec(`python3 /tmp/submission.py`, (error, stdout, stderr) => {
-     res.json({ output: stdout || stderr });
-   });
-   ```
-4. Output captured in the callback buffer is returned directly to the browser.
+## Technical Trade-Offs & Design Rationale
 
-## Why This Approach?
+| Consideration | Approach | Trade-Off Rationale |
+| :--- | :--- | :--- |
+| **Setup Overhead** | Native Node.js `fs` & `child_process` | Zero external dependencies; enabled rapid API-to-runner validation. |
+| **Output Buffering** | In-Memory Buffer | Simple single-callback semantics, but bounded by buffer limits (`maxBuffer`). |
+| **Isolation Boundary** | Direct Host Execution | Unrestricted execution environment; exposed host kernel and process environment. |
 
-- **Zero External Dependencies**: Uses native Node.js core modules (`fs`, `child_process`).
-- **Rapid Prototyping**: Allowed testing the full frontend-backend integration in less than a day.
-- **Proof of Concept**: Confirmed that source code can be transferred, executed, and evaluated over standard HTTP.
+## Architectural Discussion
 
-## Problems Discovered
+- **Command Injection Risks of Shell Invocation**: `child_process.exec()` invokes a system shell (e.g. `/bin/sh`) to run command strings. Passing unsanitized input enables command injection (e.g., executing arbitrary secondary shell commands). Furthermore, untrusted processes inherit host Node.js process privileges, exposing environment variables, local files, and network interfaces.
+- **In-Memory Buffering Hazards**: `exec()` buffers stdout/stderr stream outputs in RAM until process completion. High-volume output streams exceed Node.js buffer thresholds (default 1MB), triggering `ERR_CHILD_PROCESS_STDIO_MAXBUFFER` errors or crashing V8 heap memory.
 
-- **Host Security Vulnerability**: Code runs directly on the backend host machine with the user privileges of the Node.js process. User code can read host environment variables, modify system files, or open network connections.
-- **Command Injection Risk**: Concatenating shell commands without strict sanitization exposes the system to command injection (e.g., submitting `; rm -rf /`).
-- **Memory Buffer Overflow**: `exec()` buffers the entire output in memory (default `maxBuffer` is 1MB). If code generates excessive output, the process throws `ERR_CHILD_PROCESS_STDIO_MAXBUFFER`.
-- **No Resource Limits**: An infinite loop (`while(true)`) or memory leak in user code hangs the Node.js thread or consumes 100% of host CPU/RAM.
+## Current Limitations
 
-## Lessons Learned
+- Code executes directly on the host operating system with full Node.js process privileges.
+- Output is buffered entirely in memory until process completion.
+- Infinite loops or memory leaks in user code can hang or crash the host server.
+- No CPU, RAM, or network resource limits are enforced.
 
-- Direct host execution using `exec()` is suitable only for local smoke tests, not for running untrusted code in production.
-- Buffering process output in memory creates scalability and memory safety hazards.
-- System isolation and resource limits must be enforced at the operating system level rather than relying on application code.
+## Future Improvements
 
-## Next Steps
+- Stream process output asynchronously using `child_process.spawn()`.
+- Isolate user code execution inside containerized sandboxes (Docker).
+- Enforce process execution timeouts (Time Limit Exceeded - TLE).
 
-- Replace `exec()` with `spawn()` to stream output line-by-line and gain better process lifecycle handles.
-- Move execution off the host OS and into isolated Docker containers with restricted permissions.
+## Key Takeaways
+
+- Direct host execution with `exec()` was sufficient for validating the initial request pipeline, but unsuited for untrusted code execution.
+- Buffering output in RAM introduces instant memory exhaustion risks under heavy output generation.

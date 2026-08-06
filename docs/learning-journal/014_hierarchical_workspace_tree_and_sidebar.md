@@ -1,124 +1,63 @@
 # 014 - Hierarchical Workspace Tree & Sidebar Tree View
 
-## Problem
+## Overview & Problem Statement
 
-CRDT workspace state stores files and folders as flat `Y.Map` collections indexed by UUIDs. Rendering flat lists in the user interface fails to convey nested directory structures, makes navigation confusing, and complicates creating or moving files into deep subfolders. Additionally, creating files required manually specifying language modes rather than inferring them from file extensions.
+Storing files and folders as flat CRDT maps was optimal for network synchronization, but displaying flat lists in the user interface failed to convey directory hierarchies. To provide an authentic IDE file explorer, a client-side **Tree Construction Utility**, a **Recursive Tree Node Component**, extension-based **Language Auto-Detection**, and sibling path validation were implemented.
 
-## Goal
+## System Architecture & Data Flow
 
-1. Implement a client-side tree construction utility (`frontend/src/utils/workspaceTree.ts`) that transforms flat metadata maps into nested tree nodes.
-2. Build a recursive React component (`WorkspaceTreeNode.tsx`) for rendering nested directory hierarchies, handling expand/collapse states, active file highlighting, file creation inputs, inline renaming, and item deletion.
-3. Add automatic language detection based on file extension (`utils/languageDetector.ts`) and duplicate name validation.
-
-## Architecture & Implementation
-
-### Tree Construction Utility (`workspaceTree.ts`)
-
-`createTree` converts flat arrays of `FileMetadata` and `FolderMetadata` into a hierarchical `TreeNode` array:
-
-```typescript
-export interface TreeNode {
-    id: string;
-    name: string;
-    type: "file" | "folder";
-    children?: TreeNode[];
-}
-
-export function createTree({ files, folders }: ITreeNode): TreeNode[] {
-    const folderMap = new Map<string, TreeNode>();
-    const rootNodes: TreeNode[] = [];
-
-    // Map folder entries
-    for (const folder of folders) {
-        folderMap.set(folder.id, {
-            id: folder.id,
-            name: folder.name,
-            type: "folder",
-            children: []
-        });
-    }
-
-    // Link subfolders to parent folders
-    for (const folder of folders) {
-        const node = folderMap.get(folder.id)!;
-        if (folder.parentFolderId && folderMap.has(folder.parentFolderId)) {
-            folderMap.get(folder.parentFolderId)!.children!.push(node);
-        } else {
-            rootNodes.push(node);
-        }
-    }
-
-    // Link files to parent folders or root
-    for (const file of files) {
-        const node: TreeNode = { id: file.id, name: file.name, type: "file" };
-        if (file.parentFolderId && folderMap.has(file.parentFolderId)) {
-            folderMap.get(file.parentFolderId)!.children!.push(node);
-        } else {
-            rootNodes.push(node);
-        }
-    }
-
-    // Sort folders above files alphabetically
-    const compareNodes = (a: TreeNode, b: TreeNode) => {
-        if (a.type !== b.type) return a.type === "folder" ? -1 : 1;
-        return a.name.localeCompare(b.name);
-    };
-
-    folderMap.forEach(folder => folder.children?.sort(compareNodes));
-    rootNodes.sort(compareNodes);
-
-    return rootNodes;
-}
+```
+┌────────────────────────────────────────────────────────────────────────┐
+│ CRDT State Input: Flat Arrays of File & Folder Metadata                │
+└───────────────────────────────────┬────────────────────────────────────┘
+                                    │
+                                    ▼
+┌────────────────────────────────────────────────────────────────────────┐
+│ Tree Construction Algorithm (createTree in workspaceTree.ts)           │
+│  1. Map folders by ID into TreeNode lookup dictionary                  │
+│  2. Iterate items: attach child nodes to parent folder's children array│
+│  3. Fallback: place orphan or root items into rootNodes array          │
+│  4. Sort deterministically: Folders above Files, sorted Alphabetically │
+└───────────────────────────────────┬────────────────────────────────────┘
+                                    │ Hierarchical TreeNode Array
+                                    ▼
+┌────────────────────────────────────────────────────────────────────────┐
+│ Recursive UI Component (WorkspaceTreeNode.tsx)                         │
+│  ├── Folder Nodes: Toggle open/closed state, render children           │
+│  ├── File Nodes: Set active editor tab, render language/file icons     │
+│  └── Inline Inputs: Inline renaming, creating subfiles or subfolders   │
+└────────────────────────────────────────────────────────────────────────┘
 ```
 
-### Recursive Node Component (`WorkspaceTreeNode.tsx`)
+1. **Tree Transformer (`createTree`)**: Converts flat metadata arrays into nested `TreeNode` structures in $O(N)$ linear time using a hash map lookup.
+2. **Recursive View (`WorkspaceTreeNode`)**: Renders nested items recursively, managing collapsible folder states and inline editing fields.
+3. **Extension Auto-Detection (`languageDetector`)**: Maps file extensions (`.py` -> `python`, `.ts` -> `typescript`, `.cpp` -> `cpp`) to auto-configure Monaco syntax modes.
 
-`WorkspaceTreeNode` recursively renders directory trees:
-- Folders toggle open/closed state.
-- Selecting a file updates active editor tab.
-- Hover action buttons allow creating new subfiles or subfolders inside target directories.
-- Double-clicking or clicking edit triggers inline input fields for renaming.
-- Deleting items sends confirmation socket events to backend workspace handlers.
+## Technical Trade-Offs & Design Rationale
 
-### Extension-Based Language Detection (`languageDetector.ts`)
+| Consideration | Approach | Trade-Off Rationale |
+| :--- | :--- | :--- |
+| **Tree Transformation** | Client-Side $O(N)$ Hash Map | Keeps CRDT payloads flat while giving client flexibility to structure and sort UI trees. |
+| **Visual Consistency** | Deterministic Folder-First Sort | Sorting folders above files alphabetically guarantees consistent multi-user layout. |
+| **Render Performance** | Memoized Sub-Tree Toggles | Folder toggles re-render only target sub-trees without triggering full sidebar reflows. |
 
-When users type file names like `main.cpp` or `index.ts`, `detectLanguage` automatically infers Monaco syntax highlighting modes:
+## Architectural Discussion
 
-```typescript
-export function detectLanguage(fileName?: string, fallback = "javascript"): string {
-    if (!fileName) return fallback;
-    const ext = fileName.split(".").pop()?.toLowerCase();
-    switch (ext) {
-        case "py": return "python";
-        case "cpp": case "c": case "hpp": case "h": return "cpp";
-        case "js": case "jsx": return "javascript";
-        case "ts": case "tsx": return "typescript";
-        case "json": return "json";
-        case "html": return "html";
-        case "css": return "css";
-        case "md": return "markdown";
-        default: return fallback;
-    }
-}
-```
+- **Linear-Time Tree Construction Algorithm**: Using a two-pass Hash Map algorithm converts flat records into nested trees in $O(N)$ time complexity. First pass creates `TreeNode` objects in a lookup map by ID. Second pass iterates through records, retrieving parent nodes from the map in $O(1)$ time and pushing child nodes into parent `children` arrays, or into `rootNodes` if no parent exists.
+- **Optimizing Recursive Tree Components in React**: Assigning immutable UUIDs as React `key` props, memoizing node sub-trees (`React.memo`), and keeping collapsible open/closed toggle states localized to individual node components ensures expanding or collapsing a folder re-renders only that sub-tree without triggering full sidebar re-renders.
 
-### Duplicate Validation
+## Current Limitations
 
-Both client-side creation forms and server-side `Workspace` methods enforce uniqueness for sibling entries in the same parent directory, preventing path collisions and UI rendering glitches.
+- Code execution runner fails for programs expecting user standard input (STDIN, e.g. `input()` in Python or `cin` in C++).
+- High-frequency username editing in UI fields triggers duplicate socket presence join events.
 
-## Key Improvements & Benefits
+## Future Improvements
 
-- **Intuitive IDE Layout**: Users navigate projects using familiar tree views with nested folder indentations and file icons.
-- **Deterministic Tree Sorting**: Directories always appear above files, with alphabetical sorting applied at every folder level.
-- **Automated Language Configuration**: Creating files auto-sets editor syntax modes based on extensions without manual dropdown selections.
+- Support interactive STDIN input stream piping into Docker containers (`container.attach`).
+- Debounce username identity updates to prevent socket presence thrashing.
+- Overhaul IDE user interface into a clean minimal layout with execution telemetry metrics.
 
-## Lessons Learned
+## Key Takeaways
 
-- Converting flat entity lists into nested trees on the client keeps Yjs storage simple while giving UI views complete rendering flexibility.
-- Recursive component rendering paired with strict key props ensures React efficiently updates modified tree sub-branches without full sidebar re-renders.
-
-## Next Steps
-
-- Implement interactive STDIN code execution support.
-- Fix user presence thrashing during username edits and persist assigned cursor colors.
-- Complete minimal IDE UI redesign.
+- Transforming flat parent-referencing data into nested trees on the client kept CRDT network payloads simple while giving the UI full layout flexibility.
+- Inferring editor syntax modes from file extensions eliminated tedious manual dropdown configuration.

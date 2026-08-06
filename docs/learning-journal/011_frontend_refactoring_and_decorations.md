@@ -1,75 +1,55 @@
-# 011 - Modular Hooks & Multi-User Monaco Decorations
+# 011 - Modular Custom Hooks & Monaco Decorations
 
-## Problem
+## Overview & Problem Statement
 
-As collaborative editing, real-time presence, Yjs document synchronization, and remote cursor decorations were added, the main `MonacoEditor.tsx` component grew monolithic (over 300+ lines). Mixing WebSocket lifecycle hooks, Monaco model bindings, custom CSS styling, and UI state in a single component degraded readability, made testing difficult, and increased bug risk.
+Combining WebSocket connection lifecycles, CRDT bindings, DOM decoration calculations, and UI view rendering inside `MonacoEditor.tsx` created a monolithic component difficult to maintain and test. The frontend architecture was refactored by extracting real-time presence and Yjs synchronization into modular React custom hooks and helper modules.
 
-## Goal
-
-Refactor the frontend collaboration architecture by decomposing real-time presence and document synchronization into modular React hooks (`useRemotePresence`, `useYjsSync`), extracting decoration utilities into dedicated modules (`monacoDecorations.ts`), and adding a connected users list UI.
-
-## Architecture & Refactored Structure
-
-Separated concerns cleanly between data management, editor model bindings, and UI presentation components.
-
-### Modular Architecture
+## System Architecture & Data Flow
 
 ```
-┌───────────────────────────────────────────────────────────┐
-│ MonacoEditor.tsx (UI Component View)                      │
-├───────────────────────────────┬───────────────────────────┤
-│ Custom Hooks                  │ Helper Utility Modules    │
-│  ├── useYjsSync.ts            │  └── monacoDecorations.ts │
-│  └── useRemotePresence.ts     │                           │
-└───────────────────────────────┴───────────────────────────┘
-                                              │
-                                              ▼
-┌───────────────────────────────────────────────────────────┐
-│ Sidebar.tsx (Connected User List & Active Status)         │
-└───────────────────────────────────────────────────────────┘
+┌────────────────────────────────────────────────────────────────────────┐
+│ MonacoEditor.tsx (Pure View Component)                                 │
+├───────────────────────────────────┬────────────────────────────────────┤
+│ Custom Hooks                      │ Helper Utility Modules             │
+│  ├── useYjsSync.ts                │  └── monacoDecorations.ts          │
+│  └── useRemotePresence.ts         │                                    │
+└───────────────────────────────────┴────────────────────────────────────┘
+                  │                                  │
+                  ▼                                  ▼
+┌───────────────────────────────────┐  ┌─────────────────────────────────┐
+│ WebSocket & Yjs Document Manager  │  │ Monaco DOM Delta Decorations    │
+└───────────────────────────────────┘  └─────────────────────────────────┘
 ```
 
-### Module Responsibilities
+1. **`useYjsSync` Hook**: Manages `Y.Doc` initialization, WebSocket provider lifecycles, `y-monaco` binding creation, and teardown cleanup on unmount.
+2. **`useRemotePresence` Hook**: Manages presence socket listeners, tracks local cursor shifts, and exposes connected collaborator states.
+3. **`monacoDecorations` Utility**: Pure helper module responsible for calculating text ranges and invoking `editor.deltaDecorations()`.
 
-1. **`useYjsSync.ts`**: Encapsulates `Y.Doc` initialization, WebSocket provider connection, `y-monaco` binding lifecycle, and automatic cleanup on unmount.
-2. **`useRemotePresence.ts`**: Manages Socket.IO presence connection, emits local cursor movements, listens for remote presence updates, and returns a clean map of connected users.
-3. **`monacoDecorations.ts`**: Pure helper module responsible for calculating Monaco text range objects, injecting user-specific CSS classes, and invoking `editor.deltaDecorations()`.
-4. **`Sidebar.tsx`**: Renders active collaborators, their assigned cursor colors, connection status badges, and total user counts.
+## Technical Trade-Offs & Design Rationale
 
-### Key Refactored Code Example
+| Consideration | Approach | Trade-Off Rationale |
+| :--- | :--- | :--- |
+| **Separation of Concerns** | Custom React Hooks | Decouples network state management from component DOM rendering logic. |
+| **Resource Safety** | Consolidated Unmount Teardowns | Consolidates cleanup logic (destroying Yjs bindings, removing listeners) inside hook teardowns. |
+| **Pure Utilities** | Out-of-Render Calculations | Computes range objects outside the React render loop to prevent re-render thrashing. |
 
-```typescript
-// MonacoEditor.tsx
-export const MonacoEditor = ({ roomId, username, language }: EditorProps) => {
-  const [editorRef, setEditorRef] = useState<monaco.editor.IStandaloneCodeEditor | null>(null);
+## Architectural Discussion
 
-  // Modular custom hooks for state & sync
-  const { isConnected } = useYjsSync(editorRef, roomId);
-  const { remoteUsers } = useRemotePresence(editorRef, roomId, username);
+- **Encapsulating Network Logic in Custom Hooks**: Combining socket events, CRDT bindings, and DOM rendering inside UI components creates monolithic files prone to stale state closures, re-render loops, and dangling listener memory leaks. Custom hooks encapsulate side effects and provide clean subscription lifecycle APIs.
+- **Out-of-Render Calculation Isolation**: Moving calculations (like converting socket cursor coordinates into Monaco range objects) into pure utility functions keeps computation outside the React render cycle, preventing state mutations and re-render thrashing.
 
-  // Effect handles remote cursor decoration updates safely
-  useEffect(() => {
-    if (!editorRef) return;
-    updateRemoteDecorations(editorRef, remoteUsers);
-  }, [editorRef, remoteUsers]);
+## Current Limitations
 
-  return <div id="editor-container" />;
-};
-```
+- Editor sessions remain constrained to single-file buffers.
+- Client socket event emissions rely on inline string payloads rather than a centralized client API facade.
 
-## Key Improvements & Benefits
+## Future Improvements
 
-- **Separation of Concerns**: UI rendering is completely decoupled from Socket.IO events, Yjs CRDT operations, and Monaco DOM manipulation.
-- **Leak Prevention**: Explicit lifecycle hook cleanup ensures WebSocket listeners and Monaco decorations are destroyed when users navigate away or disconnect.
-- **Enhanced UI Awareness**: Users can see all active collaborators in the sidebar with matching cursor badges.
+- Design a CRDT `Workspace` data model supporting nested folders and multi-file text buffers.
+- Modularize server socket event handlers into domain-specific registrars (`lifecycle`, `presence`, `workspace`).
+- Create a centralized client-side `workspaceEvents` API layer.
 
-## Lessons Learned
+## Key Takeaways
 
-- Complex real-time features should be broken down into modular custom hooks early to keep UI view components focused and maintainable.
-- Isolating DOM-manipulating utilities (like Monaco decoration state calculation) into pure functions eliminates unexpected React render loops and side effects.
-
-## Next Steps
-
-- Implement multi-room support and room access permissions.
-- Save collaborative session state to persistent backend storage (MongoDB).
-- Add collaborative execution output streaming so all participants view code output simultaneously.
+- Extracting network state management into custom React hooks resolved re-render loops and guaranteed clean teardown of WebSocket listeners.
+- Moving coordinate calculations into pure utility modules kept heavy DOM calculations outside the React render loop.

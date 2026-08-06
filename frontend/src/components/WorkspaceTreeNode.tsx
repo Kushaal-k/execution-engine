@@ -140,7 +140,7 @@ function WorkspaceTreeNode({ node, files = [], folders = [], depth = 0, currentF
                     />
                 </div>
                 {isDuplicateRename && (
-                    <div className="absolute left-0 right-0 top-full mt-1 z-50 p-2 bg-rose-950/95 border border-rose-700/80 rounded shadow-xl text-[10px] text-rose-200 leading-tight font-sans select-none break-words">
+                    <div className="absolute left-0 right-0 top-full mt-1 z-50 p-2 bg-rose-950/95 border border-rose-700/80 rounded shadow-xl text-[10px] text-rose-200 leading-tight font-sans select-none wrap-break-word">
                         A file or folder '{trimmedTempName}' already exists at this location. Please choose a different name.
                     </div>
                 )}
@@ -287,7 +287,7 @@ function WorkspaceTreeNode({ node, files = [], folders = [], depth = 0, currentF
                         />
                     </div>
                     {isDuplicateFolder && (
-                        <div className="absolute left-0 right-0 top-full mt-1 z-50 p-2 bg-rose-950/95 border border-rose-700/80 rounded shadow-xl text-[10px] text-rose-200 leading-tight font-sans select-none break-words">
+                        <div className="absolute left-0 right-0 top-full mt-1 z-50 p-2 bg-rose-950/95 border border-rose-700/80 rounded shadow-xl text-[10px] text-rose-200 leading-tight font-sans select-none wrap-break-word">
                             A file or folder '{trimmedFolderName}' already exists at this location. Please choose a different name.
                         </div>
                     )}
@@ -314,7 +314,7 @@ function WorkspaceTreeNode({ node, files = [], folders = [], depth = 0, currentF
                         />
                     </div>
                     {isDuplicateFile && (
-                        <div className="absolute left-0 right-0 top-full mt-1 z-50 p-2 bg-rose-950/95 border border-rose-700/80 rounded shadow-xl text-[10px] text-rose-200 leading-tight font-sans select-none break-words">
+                        <div className="absolute left-0 right-0 top-full mt-1 z-50 p-2 bg-rose-950/95 border border-rose-700/80 rounded shadow-xl text-[10px] text-rose-200 leading-tight font-sans select-none wrap-break-word">
                             A file or folder '{trimmedFileName}' already exists at this location. Please choose a different name.
                         </div>
                     )}

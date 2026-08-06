@@ -1,95 +1,62 @@
-# 010 - User Presence and Remote Cursors
+# 010 - Real-Time Presence & Remote Cursors
 
-## Problem
+## Overview & Problem Statement
 
-While CRDTs handle text synchronization seamlessly, collaborators in a shared session cannot see who else is online, where remote users are typing, or what code ranges they have highlighted. Without visual awareness indicators, multi-user editing feels disconnected and leads to accidental overlap.
+While Yjs synchronized text changes, users could not see active collaborator cursor positions or text selections. To provide visual feedback during pair programming sessions, an Awareness and Remote Presence engine was built to render collaborator cursors, selection ranges, usernames, and cursor colors in Monaco Editor.
 
-## Goal
-
-Implement real-time user presence tracking, username identification, and render dynamic remote user cursors and text selection highlights inside Monaco Editor.
-
-## Architecture & Implementation
-
-Utilized Socket.IO presence events and Yjs Awareness state to broadcast client cursor positions and selection ranges.
-
-### Presence Payload & Style Injection Flow
+## System Architecture & Data Flow
 
 ```
-┌───────────────────────────┐
-│ User Cursor Move Event    │
-│  (Line: 12, Column: 5)    │
-└─────────────┬─────────────┘
-              │
-              ▼
-┌───────────────────────────┐     Broadcast     ┌───────────────────────────┐
-│ Socket.IO Presence Event  │ ────────────────> │ Server Sync Manager       │
-└───────────────────────────┘                   └─────────────┬─────────────┘
-                                                              │ Broadcast state
-                                                              ▼
-┌───────────────────────────┐                   ┌───────────────────────────┐
-│ Monaco Dynamic CSS Class  │ <──────────────── │ Remote Client Listener    │
-│  .remote-cursor-{userId}  │  deltaDecorations │  Update Awareness Map     │
-└───────────────────────────┘                   └───────────────────────────┘
+┌────────────────────────────────────────────────────────────────────────┐
+│ Client Browser (Local User)                                            │
+│  ├── Monaco Editor Cursor Position Listener                            │
+│  └── Socket Emission ("presence-update": line, column, selection)      │
+└───────────────────────────────────┬────────────────────────────────────┘
+                                    │
+                                    ▼
+┌────────────────────────────────────────────────────────────────────────┐
+│ Socket.IO Server Presence Registry                                     │
+│  └── Ephemeral Room Map { socketId -> { username, color, position } }  │
+└───────────────────────────────────┬────────────────────────────────────┘
+                                    │ Broadcast Presence Map
+                                    ▼
+┌────────────────────────────────────────────────────────────────────────┐
+│ Client Browser (Collaborator Editor View)                              │
+│  ├── Map Remote Presence to Range Coordinate Objects                   │
+│  └── Monaco deltaDecorations API (Inject Dynamic Cursor CSS Badges)    │
+└───────────────────────────────────┴────────────────────────────────────┘
 ```
 
-### Data Payload Structure
+1. **Motion Tracking**: Listens to Monaco cursor position events (`onDidChangeCursorPosition`).
+2. **Ephemeral Transport**: Broadcasts lightweight presence payloads over Socket.IO (socket ID, username, assigned color, cursor coordinates, selection ranges).
+3. **Monaco Delta Decorations**: Converts coordinate payloads into Monaco range objects and applies dynamic CSS classes (`editor.deltaDecorations()`) to render floating cursor pills and selection overlays.
 
-```typescript
-interface UserPresence {
-  userId: string;
-  user: {
-    username: string;
-    color: string;
-  };
-  cursor?: {
-    line: number;
-    column: number;
-  };
-  selection?: {
-    startLine: number;
-    startCol: number;
-    endLine: number;
-    endCol: number;
-  };
-}
-```
+## Technical Trade-Offs & Design Rationale
 
-### Dynamic Monaco CSS Class Injection
+| Consideration | Approach | Trade-Off Rationale |
+| :--- | :--- | :--- |
+| **State Storage** | Ephemeral Socket Memory | Prevents CRDT document history and database bloat from high-frequency cursor movements. |
+| **Lifecycle** | Connection-Bound Lifetime | Presence data exists only while connected; disconnecting purges badges instantly. |
+| **DOM Batching** | `editor.deltaDecorations()` API | Diffs decoration range IDs in a single batch operation, minimizing DOM recalculation overhead. |
 
-To render remote cursors with user-specific colors dynamically, custom CSS rules are injected into the document head at runtime:
+## Architectural Discussion
 
-```typescript
-function injectUserStyles(userId: string, color: string) {
-  const styleId = `user-style-${userId}`;
-  if (!document.getElementById(styleId)) {
-    const styleTag = document.createElement('style');
-    styleTag.id = styleId;
-    styleTag.innerHTML = `
-      .remote-cursor-${userId} {
-        border-left: 2px solid ${color} !important;
-        position: absolute;
-      }
-      .remote-selection-${userId} {
-        background-color: ${color}33 !important;
-      }
-    `;
-    document.head.appendChild(styleTag);
-  }
-}
-```
+- **Separating Ephemeral Telemetry from Persistent CRDT State**: CRDTs manage persistent document data convergence. Presence data is ephemeral, transient, and high-frequency. Storing presence in CRDT history creates massive memory bloat. Ephemeral presence belongs in isolated volatile memory channels.
+- **Batching DOM Decoration Operations**: Using Monaco's `editor.deltaDecorations()` API avoids destroying and recreating DOM elements on every update. `deltaDecorations` diffs existing decoration IDs against new target ranges in a single batch operation, minimizing DOM reflows.
 
-## Features & Improvements
+## Current Limitations
 
-- **Username Input Guard**: Require users to enter a non-empty username before joining collaborative rooms; Monaco Editor remains `readOnly` until a valid username is set.
-- **Dynamic Selection Highlights**: Renders highlighted text blocks of remote users in real time using semi-transparent HSL colors (`${color}33`).
-- **Clean Decoration Management**: Tracks Monaco decoration IDs per user (`editor.deltaDecorations(oldDecorations, newDecorations)`), replacing old decorations atomically to prevent ghost cursors.
+- High-frequency presence emissions (on every keypress) can cause network traffic spikes if un-debounced.
+- Presence and editor synchronization logic are mixed inside the primary `MonacoEditor.tsx` component, reducing component maintainability.
+- Multi-file workspace tree management is not yet supported.
 
-## Lessons Learned
+## Future Improvements
 
-- Remote cursor position rendering requires continuous management of Monaco decoration arrays to avoid memory leaks and stale cursor markers when users disconnect.
-- Dynamically injecting scoped CSS classes per user ID allows fully customizable cursor colors without hardcoding static theme styles.
+- Refactor frontend presence and Yjs synchronization logic into modular React custom hooks (`useYjsSync`, `useRemotePresence`).
+- Implement debouncing for high-frequency user identity updates.
+- Build a multi-file CRDT workspace model.
 
-## Next Steps
+## Key Takeaways
 
-- Refactor monolithic Monaco editor code by extracting stateful hooks (`useRemotePresence`, `useYjsSync`).
-- Add a connected users sidebar list displaying online participants, avatar badges, and cursor colors.
+- Separating volatile presence telemetry from persistent CRDT document state prevented history bloat in long-term storage.
+- Utilizing Monaco's native `deltaDecorations` API enabled smooth multi-cursor rendering without DOM reflow stuttering.

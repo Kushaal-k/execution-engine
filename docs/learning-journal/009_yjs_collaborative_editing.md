@@ -1,67 +1,55 @@
-# 009 - Collaborative Editing with Yjs and y-monaco
+# 009 - Collaborative Real-Time Editing (Yjs CRDTs)
 
-## Problem
+## Overview & Problem Statement
 
-Building a multi-user collaborative code editor presents critical synchronization challenges: if two users edit the same document concurrently, naive text replacement causes overwrites, cursor jumping, lost edits, and race conditions.
+Enabling multiple developers to edit the same file simultaneously introduces concurrent editing conflicts. Simple string replacements or central file locks result in lost edits, cursor jumps, or document corruption. To achieve conflict-free real-time collaboration, Yjs based on Conflict-Free Replicated Data Types (CRDTs) was integrated.
 
-## Goal
-
-Implement conflict-free real-time collaborative code editing in Monaco Editor using **Yjs** (a high-performance Conflict-free Replicated Data Type / CRDT library) and `y-monaco` bindings over a dedicated WebSocket sync server.
-
-## Architecture & Implementation
-
-Integrated `yjs`, `y-websocket`, and `y-monaco` on the frontend and established a dedicated collaborative sync server.
-
-### Real-Time CRDT Architecture
+## System Architecture & Data Flow
 
 ```
-┌─────────────────────────────────┐                 ┌─────────────────────────────────┐
-│ Client A                        │                 │ Client B                        │
-│ ┌─────────────────────────────┐ │                 │ ┌─────────────────────────────┐ │
-│ │ Monaco Editor Component     │ │                 │ │ Monaco Editor Component     │ │
-│ └──────────────┬──────────────┘ │                 │ └──────────────┬──────────────┘ │
-│                │ y-monaco       │                 │                │ y-monaco       │
-│ ┌──────────────▼──────────────┐ │   WebSocket     │ ┌──────────────▼──────────────┐ │
-│ │ Y.Doc (Shared Y.Text)       │ ├─────────────────┤ │ Y.Doc (Shared Y.Text)       │ │
-│ └─────────────────────────────┘ │ (Sync Protocol) │ └─────────────────────────────┘ │
-└─────────────────────────────────┘                 └─────────────────────────────────┘
+┌────────────────────────────────┐                             ┌────────────────────────────────┐
+│ Client A (User A Editor)       │                             │ Client B (User B Editor)       │
+│ ┌────────────────────────────┐ │                             │ ┌────────────────────────────┐ │
+│ │ Monaco Editor View         │ │                             │ │ Monaco Editor View         │ │
+│ └──────────────┬─────────────┘ │                             │ └──────────────┬─────────────┘ │
+│                │ Local Edit    │                             │                │ Local Edit    │
+│                ▼               │                             │                ▼               │
+│ ┌────────────────────────────┐ │     Binary Yjs Update Delta │ ┌────────────────────────────┐ │
+│ │ Y.Doc Shared Text CRDT     │ ├────────────────────────────►│ │ Y.Doc Shared Text CRDT     │ │
+│ └────────────────────────────┘ │   (via Socket.IO Transport) │ └────────────────────────────┘ │
+└────────────────────────────────┘                             └────────────────────────────────┘
 ```
 
-### Frontend Integration
+1. **CRDT Data Representation**: Text is represented as an ordered sequence of character items tagged with unique Client ID and Clock Sequence metadata.
+2. **Deterministic Merging**: Edits apply locally first and broadcast compressed binary state updates (`Uint8Array`) over WebSockets.
+3. **Eventual Consistency**: All nodes apply incoming state vectors deterministically, converging on identical document state without requiring a central lock manager.
 
-```typescript
-import * as Y from 'yjs';
-import { WebsocketProvider } from 'y-websocket';
-import { MonacoBinding } from 'y-monaco';
-import * as monaco from 'monaco-editor';
+## Technical Trade-Offs & Design Rationale
 
-// 1. Initialize shared Yjs Document
-const doc = new Y.Doc();
-const provider = new WebsocketProvider('ws://localhost:5000', 'execution-room', doc);
-const yText = doc.getText('monaco');
+| Consideration | Approach | Trade-Off Rationale |
+| :--- | :--- | :--- |
+| **Convergence Model** | CRDT (Yjs) vs OT | Guarantees eventual consistency mathematically without central server operation transformation logic. |
+| **Network Encoding** | Binary Typed Arrays (`Uint8Array`) | Struct-offset binary encoding minimizes WebSocket payload size and memory overhead. |
+| **Memory Trade-Off** | Historical Metadata Overhead | Character insertion items retain clock metadata in memory to guarantee historical convergence. |
 
-// 2. Bind Yjs shared text model to Monaco Editor model
-const editorModel = editor.getModel();
-const binding = new MonacoBinding(
-  yText,
-  editorModel,
-  new Set([editor]),
-  provider.awareness
-);
-```
+## Architectural Discussion
 
-## Why Yjs & CRDTs?
+- **CRDT vs Operational Transformation (OT)**: OT relies on a central server to rewrite operation index offsets relative to concurrent edits, creating a server bottleneck. CRDTs attach immutable logical timestamps to data structures, enabling nodes to merge updates out-of-order and arrive at identical state deterministically.
+- **State Vector Synchronization Protocol**: Yjs uses **State Vectors**. When a client joins, it transmits its current state vector (summary of known clock sequences per client). The server or peer calculates missing document updates and returns a minimal binary update delta.
 
-- **Conflict-Free Convergence**: CRDT algorithm guarantees all connected clients converge to identical document state regardless of network latency, packet reordering, or concurrent edits.
-- **`y-monaco` Native Binding**: Automatically translates Yjs text delta updates into Monaco Editor transaction operations without triggering infinite update loops.
-- **Decoupled Architecture**: Document synchronization operates independently from code execution pipelines.
+## Current Limitations
 
-## Problems Discovered & Lessons Learned
+- Collaboration is restricted to a single shared file buffer per room; multi-file project workspaces are not supported.
+- Users cannot visually see collaborator cursor line positions or selection highlights.
+- Collaborative session state is stored in memory and lost if all room participants disconnect.
 
-- Direct mutation of Monaco editor model values (`editor.setValue()`) breaks Yjs internal model bindings and destroys document history. Edits must pass strictly through the bound `Y.Text` object.
-- Proper cleanup on component unmount (`binding.destroy()`, `provider.destroy()`) is essential to prevent WebSocket connection leaks and duplicate editor listeners.
+## Future Improvements
 
-## Next Steps
+- Build an ephemeral presence engine to track remote cursor positions and selection ranges.
+- Expand the single-file Yjs model into a multi-file, nested directory Workspace CRDT model.
+- Persist room session snapshots to database storage for persistent workspace loading.
 
-- Implement user presence (connected user list, usernames, cursor colors).
-- Display remote user cursors and text selections dynamically in Monaco Editor.
+## Key Takeaways
+
+- Yjs CRDTs solved multi-user text editing conflicts deterministically without requiring a central lock manager or complex OT server transformations.
+- Compacting document state updates into binary typed arrays (`Uint8Array`) kept WebSocket network bandwidth utilization low.

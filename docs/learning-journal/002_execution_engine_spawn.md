@@ -1,71 +1,51 @@
-# 002 - Process Execution with Spawn
+# 002 - Streamed Process Execution & Lifecycle Control (child_process.spawn)
 
-## Problem
+## Overview & Problem Statement
 
-The initial `exec()` implementation buffered all process output in memory before triggering the callback. This created memory pressure on the backend and prevented streaming real-time execution logs. Additionally, `exec()` invoked a shell instance (`/bin/sh`), adding unnecessary execution overhead and shell injection risks.
+Transitioning beyond initial prototyping revealed critical flaws in `exec()`: memory buffering risks and lack of process lifecycle management. To stream execution outputs asynchronously and enforce Time Limit Exceeded (TLE) thresholds, the execution runner evolved to use Node.js `child_process.spawn()`.
 
-## Goal
-
-Transition from shell execution to direct binary execution using Node.js `spawn()`, enable real-time output streaming, and implement basic process timeout controls.
-
-## Architecture & Implementation
-
-`child_process.spawn()` launches a new process directly without spawning an intermediary shell, emitting stream events on `stdout` and `stderr`.
-
-### Execution Flow
+## System Architecture & Data Flow
 
 ```
-┌─────────┐       HTTP Request       ┌─────────────┐       spawn()       ┌────────────────┐
-│ Browser │ ───────────────────────> │ API Server  │ ──────────────────> │ Child Process  │
-└─────────┘                          └─────────────┘                     └────────────────┘
-     ▲                                      │                                    │
-     │          Streaming Response          │       stdout.on('data') event      │
-     └──────────────────────────────────────┴────────────────────────────────────┘
+┌─────────┐    POST /execute    ┌─────────────┐    Spawn Process    ┌──────────────────────┐
+│ Browser │ ──────────────────> │ Node.js API │ ──────────────────> │ Isolated Process     │
+└─────────┘                     └─────────────┘                     └──────────────────────┘
+     ▲                                 │                                       │
+     │      Stream Response Chunks     │     stdout / stderr Event Streams     │
+     └─────────────────────────────────┴───────────────────────────────────────┘
+                                       │ (If timeout > limit)
+                                       ▼
+                             SIGTERM / SIGKILL Signal
 ```
 
-### Backend Workflow
+`spawn()` attaches event stream listeners (`stdout.on('data')`, `stderr.on('data')`, `on('close')`). An asynchronous timer monitors execution duration, issuing OS termination signals (`SIGKILL`) if execution time exceeds pre-configured thresholds.
 
-1. The API receives source code and writes it to a temporary file.
-2. The server spawns a child process directly (e.g., `spawn('python3', ['/tmp/submission.py'])`).
-3. Stream listeners collect output chunks dynamically:
-   ```javascript
-   const { spawn } = require('child_process');
-   const child = spawn('python3', ['/tmp/submission.py']);
-   let output = '';
+## Technical Trade-Offs & Design Rationale
 
-   child.stdout.on('data', (chunk) => { output += chunk.toString(); });
-   child.stderr.on('data', (chunk) => { output += chunk.toString(); });
+| Consideration | Approach | Trade-Off Rationale |
+| :--- | :--- | :--- |
+| **Stream Management** | Event-Driven Chunks | Prevents RAM exhaustion by emitting data chunks as they arrive from stdout/stderr. |
+| **Command Execution** | Direct Execution | Bypasses shell invocation by default, mitigating basic command injection vectors. |
+| **Process Control** | OS Signals (`SIGKILL`) | Enables deterministic termination of infinite loops or hanging processes. |
 
-   // Set timeout guard to prevent infinite loops
-   const timer = setTimeout(() => {
-     child.kill('SIGKILL');
-   }, 5000);
+## Architectural Discussion
 
-   child.on('close', (code) => {
-     clearTimeout(timer);
-     res.json({ output, exitCode: code });
-   });
-   ```
+- **Streamed vs Buffered Process Execution**: `exec` spawns a shell and buffers complete outputs in RAM, introducing memory exhaustion and injection vulnerabilities. `spawn` executes binaries directly without a shell, streaming data via Readable Streams and exposing process lifecycle handles suitable for streaming and resource management.
+- **Handling Time Limit Exceeded (TLE)**: An asynchronous timer (`setTimeout`) is initialized upon process spawn. If the process does not emit a `close` event within the threshold, a `process.kill('SIGKILL')` signal is sent, reclaiming host CPU resources and returning a TLE status to the caller.
 
-## Why This Approach?
+## Current Limitations
 
-- **Streamed Output**: Standard output and error streams are processed incrementally as data arrives.
-- **No Shell Invocation**: Spawning binaries directly with an argument array avoids shell parsing overhead and eliminates basic shell injection vulnerabilities.
-- **Process Lifecycle Control**: Exposed child process reference allows sending explicit signals like `SIGTERM` or `SIGKILL` on timeout.
+- Code still executes directly on the host machine without file system or process namespace isolation.
+- Execution runs synchronously within the HTTP handler thread, risking API thread pool blocking under concurrent load.
+- No hard CPU or memory resource caps are enforced by the host OS.
 
-## Problems Discovered
+## Future Improvements
 
-- **Host System Exposure**: Although execution control improved, the child process still runs on the host machine with access to host files, network interfaces, and environment variables.
-- **Lack of Hard Resource Cgroups**: Process timeout with `SIGKILL` prevents infinite loops, but user code can still exhaust host memory or fork bomb before the timer expires.
-- **Concurrent Request Degradation**: Multiple concurrent execution requests spawn child processes on the same server, quickly overwhelming host CPU resources.
+- Wrap execution inside isolated Docker containers with non-root user privileges and disabled network access.
+- Enforce hardware resource quotas (cgroups for memory and CPU allocation).
+- Offload execution to an asynchronous background job queue.
 
-## Lessons Learned
+## Key Takeaways
 
-- `spawn()` provides far superior process control and memory safety compared to `exec()`.
-- Timeout mechanisms implemented via `setTimeout` and process signals (`SIGKILL`) are necessary for process lifecycle safety.
-- Process-level separation on a shared host OS is insufficient for isolating untrusted code. Operating system isolation (containers) is mandatory.
-
-## Next Steps
-
-- Transition execution to ephemeral Docker containers to enforce containerized cgroups (CPU, memory limits).
-- Build a user interface with code editor capabilities to replace raw text inputs.
+- Transitioning to `spawn()` eliminated memory buffering bottlenecks, but host process isolation remained an unresolved security boundary.
+- Process lifecycle control backed by OS kill signals (`SIGKILL`) is mandatory for enforcing Time Limit Exceeded bounds.

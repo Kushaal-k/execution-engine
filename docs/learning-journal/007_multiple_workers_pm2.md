@@ -1,81 +1,56 @@
-# 007 - Scaling Execution Workers with PM2
+# 007 - Multi-Worker Scaling (PM2 Process Cluster)
 
-## Problem
+## Overview & Problem Statement
 
-Running a single Node.js worker process limits execution queue consumption to a single CPU core. Although individual container execution is handled by Docker, queue consumption, process orchestration, and log streaming were bottlenecked by single-threaded event loop execution under high job concurrency.
+A single Node.js worker process is bounded by a single CPU core, leaving multi-core host hardware underutilized during high concurrency. To maximize container throughput and saturate available CPU cores, multiple independent worker processes were orchestrated using PM2 process management in cluster mode.
 
-## Goal
-
-Horizontally scale background worker capacity across all available host CPU cores using PM2 process manager without introducing race conditions or duplicate job processing.
-
-## Architecture & Implementation
-
-Deployed multiple worker process instances managed by PM2, all competing for jobs on the shared BullMQ queue.
-
-### Process Distribution
+## System Architecture & Data Flow
 
 ```
-                               ┌───────────────────┐
-                               │ BullMQ Queue      │
-                               │ (Redis Server)    │
-                               └───────────────────┘
-                                         │
-                 ┌───────────────────────┼───────────────────────┐
-                 ▼                       ▼                       ▼
-      ┌─────────────────────┐ ┌─────────────────────┐ ┌─────────────────────┐
-      │ PM2 Worker Proc #1  │ │ PM2 Worker Proc #2  │ │ PM2 Worker Proc #3  │
-      │ (CPU Core 0)        │ │ (CPU Core 1)        │ │ (CPU Core 2)        │
-      └─────────────────────┘ └─────────────────────┘ └─────────────────────┘
-                 │                       │                       │
-                 ▼                       ▼                       ▼
-      ┌─────────────────────┐ ┌─────────────────────┐ ┌─────────────────────┐
-      │ Ephemeral Docker    │ │ Ephemeral Docker    │ │ Ephemeral Docker    │
-      │ Container A         │ │ Container B         │ │ Container C         │
-      └─────────────────────┘ └─────────────────────┘ └─────────────────────┘
+                      ┌──────────────────────────────────────────────────┐
+                      │ Central Redis Queue Storage (BullMQ Data Engine)  │
+                      └────────────────────────┬─────────────────────────┘
+                                               │
+               ┌───────────────────────────────┼───────────────────────────────┐
+               ▼                               ▼                               ▼
+┌─────────────────────────────┐ ┌─────────────────────────────┐ ┌─────────────────────────────┐
+│ Worker Process 1            │ │ Worker Process 2            │ │ Worker Process N            │
+│ (PM2 Instance - CPU Core 1) │ │ (PM2 Instance - CPU Core 2) │ │ (PM2 Instance - CPU Core N) │
+└──────────────┬──────────────┘ └──────────────┬──────────────┘ └──────────────┬──────────────┘
+               │                               │                               │
+               ▼                               ▼                               ▼
+┌─────────────────────────────┐ ┌─────────────────────────────┐ ┌─────────────────────────────┐
+│ Docker Sandbox Container    │ │ Docker Sandbox Container    │ │ Docker Sandbox Container    │
+└─────────────────────────────┘ └─────────────────────────────┘ └─────────────────────────────┘
 ```
 
-### PM2 Configuration (`ecosystem.config.js`)
+PM2 spawns isolated Node.js OS processes mapped across available CPU cores. Each worker instance connects to the central Redis queue independently, competing to claim waiting jobs.
 
-```javascript
-module.exports = {
-  apps: [
-    {
-      name: 'api-server',
-      script: './dist/server.js',
-      instances: 2,
-      exec_mode: 'cluster',
-    },
-    {
-      name: 'execution-worker',
-      script: './dist/worker.js',
-      instances: 'max', // Scales to available logical CPU cores
-      exec_mode: 'fork',
-      max_memory_restart: '500M',
-      env: {
-        NODE_ENV: 'production',
-      },
-    },
-  ],
-};
-```
+## Technical Trade-Offs & Design Rationale
 
-## Why PM2?
+| Consideration | Approach | Trade-Off Rationale |
+| :--- | :--- | :--- |
+| **CPU Saturation** | Multi-Process Clustering | Bypasses single-threaded V8 engine limits by utilizing all logical CPU cores. |
+| **Fault Isolation** | Process Isolation | Unhandled crashes in one worker process do not affect sibling worker instances. |
+| **Zero-Downtime Updates** | Rolling Restarts (`pm2 reload`) | Enables live deployments by updating worker instances sequentially without dropping jobs. |
 
-- **Multi-Core Utilization**: Spawns multiple isolated worker instances across all CPU cores effortlessly.
-- **Process Auto-Restart**: Monitors memory usage (`max_memory_restart`) and automatically restarts crashed or memory-leaking workers without affecting adjacent processes.
-- **Zero-Downtime Reloads**: Allows updating worker code seamlessly (`pm2 reload`) while active processes finish processing current queue jobs.
+## Architectural Discussion
 
-## System Performance Results
+- **Horizontal Process Scaling**: Running multiple independent worker processes listening to a shared queue allows parallel job consumption across CPU cores. Queue capacity scales linearly with available core count without requiring application architecture changes.
+- **Cluster Infrastructure Boundaries**: Key considerations include database connection limits (preventing connection pool exhaustion on Redis/MongoDB), memory allocation limits per worker process, and implementing graceful shutdown hooks to let workers complete active jobs before termination.
 
-- **Increased Throughput**: Scaled concurrent execution capability linearly with the number of CPU cores.
-- **Worker Crash Resilience**: If an individual worker process crashes due to an uncaught exception, PM2 restarts it immediately while sibling workers continue executing active jobs.
+## Current Limitations
 
-## Lessons Learned
+- Multiple worker instances increase database socket connections, requiring careful connection pool tuning.
+- Real-time communication between server nodes and clients still requires sticky load balancing or a pub/sub backplane.
+- Execution results are returned via polling rather than streaming real-time socket events.
 
-- BullMQ handles distributed worker locking natively via Redis atomic operations, allowing multiple worker processes to safely pull from the same queue without race conditions.
-- Horizontal scaling of worker processes increases total system throughput, but reducing single-job latency requires container pool optimizations.
+## Future Improvements
 
-## Next Steps
+- Implement bi-directional WebSockets via Socket.IO with a Redis Pub/Sub adapter for multi-node event broadcasting.
+- Integrate real-time collaborative document editing with Yjs CRDTs.
 
-- Transition client-server notifications to WebSockets (Socket.IO).
-- Prepare networking architecture for multi-user collaborative code editing.
+## Key Takeaways
+
+- Orchestrating worker processes with PM2 unlocked full hardware CPU utilization, scaling execution throughput linearly across cores.
+- Managing multiple worker instances highlighted the importance of database connection pool limits and graceful shutdown handling.

@@ -1,57 +1,53 @@
-# 005 - Redis Job Queue
+# 005 - Asynchronous Job Queue Architecture
 
-## Problem
+## Overview & Problem Statement
 
-In the synchronous container architecture, the API server held an HTTP request connection open while creating, executing, and destroying Docker containers. When traffic spiked or long-running user scripts executed, HTTP connections timed out, API server threads stalled, and incoming requests were rejected.
+Synchronous HTTP request-response execution models bind API server threads while waiting for background Docker container lifecycles to finish. Under concurrent user traffic, API connection pools become exhausted, causing HTTP gateway timeouts and server unresponsiveness. To maintain high API availability, request ingestion was decoupled from job execution using an asynchronous Producer-Consumer Job Queue pattern.
 
-## Goal
-
-Decouple request ingestion from execution by introducing an asynchronous Redis-backed job queue.
-
-## Architecture & Implementation
-
-Separated the system into an **API Ingestion Server** and a **Background Worker Process**, connected via Redis.
-
-### System Architecture
+## System Architecture & Data Flow
 
 ```
-┌─────────┐   1. POST /execute   ┌─────────────┐   2. LPUSH job   ┌─────────────┐
-│ Browser │ ───────────────────> │ API Server  │ ───────────────> │ Redis Queue │
-└─────────┘                      └─────────────┘                  └─────────────┘
-     │                                                                   │
-     │ 4. GET /status/:jobId                                             │ 3. BRPOP job
-     ▼                                                                   ▼
-┌──────────────────────────────────────────────┐                  ┌─────────────┐
-│ Poll Execution Status until DONE             │                  │ Background  │
-└──────────────────────────────────────────────┘                  │ Worker      │
-                                                                  └─────────────┘
+┌─────────┐    1. Submit Job (POST)    ┌──────────────────┐    2. Push Job    ┌──────────────────┐
+│ Browser │ ─────────────────────────> │ Producer API     │ ────────────────> │ Job Queue        │
+└─────────┘                            └──────────────────┘                   └──────────────────┘
+     │                                           ▲                                     │
+     │ 4. Poll Status / Receive Event            │ Return Job ID                       │ 3. Fetch Job
+     ▼                                           │                                     ▼
+┌────────────────────────────────────────────────┴──────────────────┐        ┌──────────────────┐
+│ Client UI View                                                    │        │ Consumer Worker  │
+└───────────────────────────────────────────────────────────────────┘        └──────────────────┘
 ```
 
-### Ingestion Flow
+1. **Producer (HTTP API)**: Validates request payloads, enqueues execution jobs, and returns an immediate `202 Accepted` response with a unique Job ID.
+2. **Message Queue**: Holds pending execution tasks in FIFO order.
+3. **Consumer (Worker Pool)**: Pulls tasks asynchronously, executes code within Docker sandboxes, updates persistent job state, and notifies clients.
 
-1. Client posts code submission to `/api/submit`.
-2. API server generates a unique `jobId` (UUID v4), pushes the execution payload to a Redis list (`LPUSH execution_queue`), sets initial status `{ status: 'QUEUED' }` in Redis hash storage, and immediately returns `{ jobId }` to the client.
-3. The background worker consumes jobs continuously using blocking list pop (`BRPOP execution_queue 0`), executes the code inside Docker, and saves the output back to Redis under `{ status: 'COMPLETED', output }`.
-4. Client polls `GET /api/status/:jobId` periodically until `status === 'COMPLETED'`.
+## Technical Trade-Offs & Design Rationale
 
-## Why Redis?
+| Consideration | Approach | Trade-Off Rationale |
+| :--- | :--- | :--- |
+| **API Throughput** | Asynchronous Non-blocking Ingestion | API servers handle incoming requests in sub-milliseconds without blocking on execution. |
+| **Traffic Spikes** | Queue Buffer & Backpressure | Absorbs sudden bursts of traffic by buffering jobs safely without dropping connections. |
+| **Client Semantics** | Polling / WebSockets | Shifted from synchronous responses to asynchronous job status tracking on the client. |
 
-- **High Throughput**: In-memory data store capable of sub-millisecond push/pop operations.
-- **Atomic Queue Primitives**: Native list commands (`LPUSH`, `BRPOP`) ensure atomic job retrieval across worker processes.
-- **Decoupled Architecture**: API server remains responsive regardless of how long execution takes in background workers.
+## Architectural Discussion
 
-## Problems Discovered
+- **Decoupling Web Tiers from Execution Workloads**: Synchronous processing ties up HTTP connection threads, causing thread pool exhaustion and gateway timeouts during heavy load. Queues decouple ingestion throughput from execution capacity, allowing API nodes to scale independently while protecting workers from sudden traffic spikes.
+- **Managing System Backpressure**: Backpressure occurs when request arrival rates exceed worker processing rates. The queue acts as a buffer, storing pending jobs without overwhelming worker nodes, allowing consumers to process tasks at maximum sustained throughput without crashing.
 
-- **Custom Queue Edge Cases**: Managing job states (`QUEUED`, `PROCESSING`, `COMPLETED`, `FAILED`) manually with raw Redis strings/hashes required significant boilerplate code.
-- **Lack of Auto-Retries & Timeout Cleanup**: If a worker process crashed mid-execution, jobs stuck in `PROCESSING` state were orphaned indefinitely.
-- **Polling Latency Overhead**: HTTP polling from the client created unnecessary request volume and introduced artificial latency (e.g., waiting for the next 1-second polling tick).
+## Current Limitations
 
-## Lessons Learned
+- Job queue state is stored in Node.js process memory; pending jobs are lost if the server process restarts.
+- Single-worker queue processing limits job execution throughput to a single consumer.
+- Retries, job delays, and stalled job recovery policies are not supported by the simple in-memory queue.
 
-- Asynchronous job queues are essential for isolating web API response paths from heavyweight computational tasks.
-- Building custom queue state management and worker retry logic on raw Redis commands is prone to race conditions and orphan state bugs.
+## Future Improvements
 
-## Next Steps
+- Upgrade from in-memory arrays to a distributed, persistent Redis queue using BullMQ.
+- Scale worker processing horizontally using PM2 process clustering across CPU cores.
+- Implement real-time WebSocket event notifications for execution job completion.
 
-- Replace custom Redis list queue handling with a production-ready queue framework (BullMQ).
-- Eliminate client HTTP polling by introducing WebSocket push notifications (Socket.IO).
+## Key Takeaways
+
+- Decoupling API request ingestion from heavy background processing maintained web server availability under concurrent traffic.
+- Shifting to asynchronous execution required establishing structured job state lifecycles (Pending, Active, Completed, Failed).

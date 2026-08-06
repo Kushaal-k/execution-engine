@@ -1,108 +1,58 @@
 # 012 - Multi-File CRDT Workspace Model
 
-## Problem
+## Overview & Problem Statement
 
-In single-file collaborative editing, a single `Y.Doc` with one `Y.Text` buffer was sufficient. However, expanding the platform into a full multi-file IDE requires organizing multiple files, nested directory structures, file metadata (e.g. `fileId`, `name`, `language`, `parentFolderId`), and folder metadata (`folderId`, `name`, `parentFolderId`) in a synchronized real-time document structure.
+Expanding single-file editing into a multi-file IDE required organizing files, nested directories, metadata, and per-file `Y.Text` buffers in a synchronized real-time document structure. To handle concurrent structural edits (create, rename, move, delete) without data corruption, a CRDT-backed `Workspace` data model was implemented.
 
-Without a structured workspace CRDT model, tracking file creation, renaming, moving, and deletions across concurrent sessions would lead to out-of-sync file trees, race conditions, or lost text buffers.
-
-## Goal
-
-Design and implement a CRDT-backed `Workspace` abstraction (`server/src/room/workspace.ts` and `@execution-engine/shared`) that encapsulates Yjs shared maps for files, folders, metadata, and per-file `Y.Text` buffers, providing conflict-free real-time workspace mutations.
-
-## Architecture & Data Model
-
-The `Workspace` class encapsulates a single `Y.Doc` instance containing three primary Yjs shared maps:
-1. `files`: `Y.Map<FileMetadata>` — Stores file attributes (`id`, `name`, `language`, `parentFolderId`).
-2. `folders`: `Y.Map<FolderMetadata>` — Stores folder attributes (`id`, `name`, `parentFolderId`).
-3. `metadata`: `Y.Map<WorkspaceMetadata>` — Stores workspace-level attributes (`id`, `name`, `createdAt`, `updatedAt`).
-
-Each file's text content is managed in a dynamic `Y.Text` buffer indexed by file ID (`doc.getText(fileId)`).
-
-### Workspace Y.Doc Hierarchy
+## System Architecture & Data Flow
 
 ```
-Workspace
-└── Y.Doc
-     ├── files (Y.Map<FileMetadata>)
-     │      ├── fileId_1: { id, name: "index.js", language: "javascript", parentFolderId: null }
-     │      └── fileId_2: { id, name: "utils.ts", language: "typescript", parentFolderId: "folderId_1" }
-     ├── folders (Y.Map<FolderMetadata>)
-     │      └── folderId_1: { id, name: "src", parentFolderId: null }
-     ├── metadata (Y.Map<WorkspaceMetadata>)
-     │      └── workspace: { id, name: "Project", createdAt, updatedAt }
-     └── textMap (doc.getText(fileId))
-            ├── "fileId_1" -> Y.Text ("console.log('hello');")
-            └── "fileId_2" -> Y.Text ("export function add()...")
+┌────────────────────────────────────────────────────────────────────────┐
+│ Workspace (Encapsulated CRDT Document Engine)                          │
+│ └── Y.Doc Instance                                                     │
+│      ├── files (Y.Map<FileMetadata>)                                   │
+│      │      ├── file_id_1: { id, name: "index.ts", parentFolderId }    │
+│      │      └── file_id_2: { id, name: "app.py", parentFolderId }      │
+│      ├── folders (Y.Map<FolderMetadata>)                               │
+│      │      └── folder_id_1: { id, name: "src", parentFolderId }       │
+│      ├── metadata (Y.Map<WorkspaceMetadata>)                           │
+│      │      └── workspace: { id, name: "Project", createdAt }          │
+│      └── dynamic text buffers (doc.getText(fileId))                    │
+│             ├── "file_id_1" -> Y.Text ("console.log('hello');")        │
+│             └── "file_id_2" -> Y.Text ("print('world')")               │
+└────────────────────────────────────────────────────────────────────────┘
 ```
 
-### Core Workspace Class Implementation
+1. **Flat Entity Maps**: File and folder metadata are stored in flat `Y.Map` collections (`files`, `folders`), referencing parent directories via explicit `parentFolderId` UUID pointers.
+2. **Dynamic Text Buffers per File UUID**: Text content for each file is stored dynamically in a `Y.Text` buffer indexed by immutable file UUIDs (`doc.getText(fileId)`).
+3. **Cascading Operations & Guards**: Deleting a folder recursively purges descendant files and subfolders. Moving folders includes an `isDescendant` check to prevent directory cycle bugs.
 
-```typescript
-export class Workspace {
-    private readonly doc = new Y.Doc();
-    private readonly files = this.doc.getMap<FileMetadata>("files");
-    private readonly folders = this.doc.getMap<FolderMetadata>("folders");
-    private readonly metadata = this.doc.getMap<WorkspaceMetadata>("metadata");
+## Technical Trade-Offs & Design Rationale
 
-    constructor(name: string) {
-        const id = crypto.randomUUID();
-        this.metadata.set('workspace', {
-            id,
-            name,
-            createdAt: Date.now(),
-            updatedAt: Date.now()
-        });
-    }
+| Consideration | Approach | Trade-Off Rationale |
+| :--- | :--- | :--- |
+| **Data Schema** | Flat Maps + Relational Pointers | Eliminates structural merge conflicts during concurrent file moves or folder re-parenting. |
+| **Buffer Lifecycles** | Immutable UUID Binding | Binding `Y.Text` to file UUIDs ensures renaming or moving files leaves text buffers intact. |
+| **Safety Guards** | Ancestor Lineage Check | `isDescendant` check rejects operations attempting to move parent folders into sub-branches. |
 
-    createFile(fileName: string, language: string, parentFolderId: string | null) {
-        const trimmedName = fileName.trim();
-        if (!trimmedName) return { fileId: null, error: "File name cannot be empty" };
+## Architectural Discussion
 
-        for (const [_, file] of this.files) {
-            if (file.name === trimmedName && parentFolderId === file.parentFolderId) {
-                return { fileId: null, error: "Duplicate File" };
-            }
-        }
+- **Flat Maps vs Nested JSON Trees**: Deeply nested JSON tree objects in CRDTs create merge conflict vulnerabilities when two users concurrently move or rename nested nodes. Flat maps with explicit `parentFolderId` UUID pointers reduce structural mutations to simple key-value updates, making merges deterministic and conflict-free.
+- **Cycle Prevention Mechanics**: The `isDescendant` algorithm traverses target parent folder lineages up to the root. Before applying a folder move, if the folder being moved is detected in the target's ancestor chain, the operation is rejected to prevent cyclic directory graphs.
 
-        const fileId = crypto.randomUUID();
-        this.files.set(fileId, { id: fileId, name: trimmedName, language, parentFolderId });
-        this.doc.getText(fileId);
-        return { fileId, error: "" };
-    }
+## Current Limitations
 
-    deleteFolder(folderId: string) {
-        // Collect and delete all files in folder
-        const filesToDelete = Array.from(this.files.entries())
-            .filter(([_, f]) => f.parentFolderId === folderId)
-            .map(([id]) => id);
-        filesToDelete.forEach(id => this.deleteFile(id));
+- Workspace state is maintained in server RAM during active sessions; persistent database loading is not fully connected.
+- Client UI sidebar still displays flat metadata arrays rather than a hierarchical nested directory tree.
+- File creation requires manual syntax language selection rather than inferring from file extensions.
 
-        // Recursively delete subfolders
-        const subfoldersToDelete = Array.from(this.folders.entries())
-            .filter(([_, f]) => f.parentFolderId === folderId)
-            .map(([id]) => id);
-        subfoldersToDelete.forEach(id => this.deleteFolder(id));
+## Future Improvements
 
-        this.folders.delete(folderId);
-    }
-}
-```
+- Build a client-side tree transformer (`createTree`) and recursive sidebar tree component (`WorkspaceTreeNode`).
+- Implement extension-based language auto-detection (`languageDetector`).
+- Modularize server socket handlers to process workspace structural mutations.
 
-## Key Architectural Decisions
+## Key Takeaways
 
-1. **Flat Map Representation with Parent References**: Instead of storing nested tree objects inside Yjs maps, files and folders are stored flat in top-level `Y.Map` collections using explicit `parentFolderId` pointers. This simplifies CRDT operation encoding and eliminates complex tree re-parenting conflict scenarios.
-2. **Dynamic `Y.Text` per File UUID**: Referencing text buffers via `doc.getText(fileId)` ties file content directly to immutable UUIDs. Renaming or moving a file leaves its text buffer intact, preventing data loss during structural edits.
-3. **Descendant Cycle Prevention**: Moving a folder checks `isDescendant()` to prevent cyclic directory structures (e.g. attempting to move a folder inside one of its own descendants).
-4. **Duplicate Path Validation**: File and folder creation methods check sibling names in the same parent directory to reject duplicate path creation before mutating CRDT state.
-
-## Lessons Learned
-
-- Flat entity maps paired with relational parent pointers are far easier to synchronize and mutate in Yjs than nested object graphs.
-- Decoupling file metadata (`FileMetadata`) from text content buffers (`Y.Text`) allows fast directory indexing without loading full file contents into UI lists.
-
-## Next Steps
-
-- Refactor Socket.IO connection event handling into modular socket handlers.
-- Create a client-side `workspaceEvents` API layer for sending structured file system mutations.
-- Build recursive frontend sidebar tree rendering (`WorkspaceTreeNode`) and extension-based language auto-detection.
+- Relational parent pointers in flat maps are simpler to synchronize in CRDTs than nested object graphs.
+- Decoupling file metadata (`FileMetadata`) from text buffers (`Y.Text`) enables fast directory indexing without loading full file contents into RAM.

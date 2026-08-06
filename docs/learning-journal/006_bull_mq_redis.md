@@ -1,67 +1,56 @@
-# 006 - BullMQ for Job Management
+# 006 - Distributed Message Queue (BullMQ & Redis)
 
-## Problem
+## Overview & Problem Statement
 
-The custom Redis list queue required manual implementation of job locking, status persistence, failure handling, retry delays, and worker event listeners. As queue requirements grew, maintaining custom queue boilerplate diverted focus from execution engine optimization.
+In-memory queue data structures within single Node.js processes present single-point-of-failure vulnerabilities: process crashes purge all pending jobs, and processing capacity cannot scale horizontally across multiple instances. To implement a fault-tolerant, distributed queue system, BullMQ backed by a Redis in-memory data store was integrated.
 
-## Goal
-
-Migrate to **BullMQ**, a Redis-based queue library for Node.js, and utilize `QueueEvents` for event-driven job completion handling.
-
-## Architecture & Implementation
-
-Replaced raw Redis `LPUSH`/`BRPOP` handlers with BullMQ `Queue`, `Worker`, and `QueueEvents` abstractions.
-
-### BullMQ Workflow
+## System Architecture & Data Flow
 
 ```
-┌────────────┐   queue.add()   ┌───────────────────┐   Worker process   ┌─────────────────┐
-│ API Server │ ──────────────> │ BullMQ (Redis)    │ ─────────────────> │ Execution Engine│
-└────────────┘                 │  ├── Waiting      │                    │  (Docker Container)
-      │                        │  ├── Active       │                    └─────────────────┘
-      │ QueueEvents listener   │  ├── Completed    │                             │
-      │ (completed event)      │  └── Failed       │                             │
-      └─────────────────────── │                   │ <───────────────────────────┘
-                               └───────────────────┘       job.updateProgress()
+┌─────────────────┐       Add Job       ┌──────────────────────────────────────────────┐
+│ Express API     │ ──────────────────> │ Redis Storage (BullMQ State Engine)          │
+│ (Producer Node) │                     │  ├── Waiting Queue (FIFO List)               │
+└─────────────────┘                     │  ├── Active Queue (Processing Set)           │
+                                        │  ├── Completed Jobs (History Log)            │
+                                        │  └── Failed Jobs (Dead Letter Queue)         │
+                                        └──────────────────────┬───────────────────────┘
+                                                               │
+                                                               │ Pull & Process Job
+                                                               ▼
+                                                ┌──────────────────────────────┐
+                                                │ Background Worker Node       │
+                                                │ (Docker Execution Consumer)  │
+                                                └──────────────────────────────┘
 ```
 
-### Server Queue Setup
+BullMQ manages job transitions across distinct lifecycle sets in Redis (`Waiting` -> `Active` -> `Completed`/`Failed`). Background workers pull jobs from `Waiting`, execute sandboxed containers, persist completion metrics to MongoDB, and publish status updates.
 
-```typescript
-import { Queue, Worker, QueueEvents } from 'bullmq';
-import { redisConnection } from './redis-config';
+## Technical Trade-Offs & Design Rationale
 
-// 1. Ingestion Queue
-export const executionQueue = new Queue('code-execution', { connection: redisConnection });
+| Consideration | Approach | Trade-Off Rationale |
+| :--- | :--- | :--- |
+| **Concurrency Controls** | Atomic Redis Lua Scripts | Eliminates race conditions when multiple workers pull jobs concurrently. |
+| **Fault Recovery** | Heartbeat Locks (`stalledInterval`) | Detects crashed worker processes and automatically re-queues abandoned jobs. |
+| **State Persistence** | Redis RDB / AOF Snapshots | In-memory execution speed with configurable disk persistence policies. |
 
-// 2. Queue Events Listener for fast notification
-export const queueEvents = new QueueEvents('code-execution', { connection: redisConnection });
+## Architectural Discussion
 
-// 3. Worker Definition
-const worker = new Worker(
-  'code-execution',
-  async (job) => {
-    const { language, code } = job.data;
-    const result = await executeInDocker(language, code);
-    return result;
-  },
-  { connection: redisConnection, concurrency: 5 }
-);
-```
+- **Atomic Queue State Transitions**: BullMQ leverages Redis's single-threaded event loop and atomic Lua scripts. When a worker claims a job, a Lua script atomically verifies job state and transitions it from `Waiting` to `Active` in a single non-blocking step, guaranteeing exclusive job ownership.
+- **Heartbeat Lock Recovery Mechanics**: BullMQ implements a heartbeat lock mechanism (`stalledInterval`). While processing, a worker periodically renews a Redis lock. If a worker crashes, the lock expires, and BullMQ automatically re-queues the stalled job for another worker node.
 
-## Advantages of BullMQ
+## Current Limitations
 
-- **Automatic Job Lifecycle & State Machine**: Built-in state management for `waiting`, `active`, `completed`, `failed`, `delayed`.
-- **Concurrency Control**: Easily configure parallel execution per worker process (`concurrency: N`).
-- **Automatic Retries & Exponential Backoff**: Built-in job retry policies for transient container launch failures.
-- **`QueueEvents` Pub/Sub**: Enables API servers to subscribe directly to Redis pub/sub completion events (`queueEvents.on('completed')`), resolving response promises instantly when background execution finishes.
+- Execution capacity is constrained by running a single background worker process.
+- Queue persistence depends on Redis server snapshot policies (RDB/AOF).
+- Real-time client completion notifications still rely on polling or basic HTTP callbacks.
 
-## Lessons Learned
+## Future Improvements
 
-- Leveraging a battle-tested queue framework eliminates custom job locking, retry, and timeout boilerplate code.
-- Combining BullMQ with `QueueEvents` pub/sub provides the speed of event-driven notifications with the durability of a persistent Redis backend.
+- Scale worker execution horizontally across all host CPU cores using PM2 process management.
+- Integrate Socket.IO for low-latency, real-time bi-directional job result streaming to browser clients.
+- Implement automated job retry policies with exponential backoffs for transient worker failures.
 
-## Next Steps
+## Key Takeaways
 
-- Scale background worker capacity horizontally across multiple CPU cores using process managers (PM2).
-- Push execution results to the client over WebSockets (Socket.IO) instead of HTTP polling.
+- Moving from in-memory queues to BullMQ and Redis established fault-tolerant job persistence and atomic lock handling across concurrent workers.
+- Heartbeat locks provided the necessary mechanism to detect crashed workers and automatically re-queue abandoned jobs.
