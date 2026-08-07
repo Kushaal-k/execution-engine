@@ -1,6 +1,6 @@
 import { Worker } from "bullmq";
 import type { Job } from "bullmq";
-import executeCode from "./execution.js";
+import {executeCode} from "./execution.js";
 
 //BullMQ worker to check for jobs in queue - execution-queue and then executing it 
 const worker = new Worker(

@@ -5,7 +5,7 @@ import Docker from "dockerode";
 import { PassThrough } from "node:stream";
 import type { IExecutionResponse, ExecutionStatus } from "./types/types.js";
 
-const docker = new Docker({ socketPath: '/var/run/docker.sock' });
+export const docker = new Docker({ socketPath: '/var/run/docker.sock' });
 
 dotenv.config();
 await connectDB();
@@ -36,7 +36,7 @@ const LANGUAGE_COMMANDS: Record<
 };
 
 //Check if image exists locally - pull if not
-const ensureImageExists = async (image: string) => {
+export const ensureImageExists = async (image: string) => {
     try {
         console.log(`[execution engine] Checking for ${image} locally`)
         //Get docker image information locally
@@ -69,7 +69,7 @@ const config = {
     cpuQuota: 100000,
 }
 
-export default async function executeCode(job_id: string) {
+export async function executeCode(job_id: string) {
 
     console.log(`[execution engine] Processing job: ${job_id}`);
 
