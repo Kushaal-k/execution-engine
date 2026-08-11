@@ -54,10 +54,6 @@ export class TerminalSession {
     }
 
     async stop(): Promise<void> {
-
-    }
-
-    async destroy(): Promise<void> {
         const container = this.runtime.getContainer();
 
         if (!container) {
@@ -72,13 +68,42 @@ export class TerminalSession {
 
         const pid = info.Pid;
 
-        container.exec({
+        if(!info.Pid) {
+            throw new Error("Terminal process PID is not available");
+        }
+
+        const killExec = await container.exec({
             Cmd: ["kill", "-TERM", String(pid)]
-        })
+        });
+
+        await killExec.start({});
+
+        this.stream?.destroy();
+
+        this.exec = null;
+        this.stream = null;
+
+        this.state = "stopped";
+    }
+
+    async destroy(): Promise<void> {
+        if(this.state === "destroyed") {
+            return;
+        }
+
+        if(this.state === "running") {
+            this.stop();
+        }
+
+        this.onOutput = null;
+        this.stream = null;
+        this.exec = null;
+
+        this.state = "destroyed";
     }
 
     write(input: string): void {
-        if (!this.stream) {
+        if (this.state !== "running" || !this.stream) {
             throw new Error("Terminal session is not running");
         }
 

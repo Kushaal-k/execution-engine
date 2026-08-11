@@ -1,16 +1,19 @@
 import { RuntimeManager } from "./runtime-manager.js";
-import { TerminalSession } from "./terminalSession.js";
+import { TerminalManager } from "./terminal-manager.js";
+import RuntimeService from "./workspaceRuntimeService.js";
 
-const manager = new RuntimeManager();
+const runtimeManager = new RuntimeManager();
+const terminalManager = new TerminalManager();
 
-const runtime = await manager.getOrCreate(
-    "workspace-1",
-    "gcc:14"
+const service = new RuntimeService(
+    runtimeManager,
+    terminalManager
 );
 
-const terminal = new TerminalSession(
+const terminal = await service.createTerminal(
+    "workspace-1",
     "terminal-1",
-    runtime
+    "gcc:14"
 );
 
 terminal.setOutputHandler((output) => {
@@ -19,19 +22,5 @@ terminal.setOutputHandler((output) => {
 
 await terminal.start();
 
-console.log("STATE:", terminal.getState());
-
 terminal.write("pwd\n");
-
-setTimeout(() => {
-    terminal.write("ls\n");
-}, 500);
-
-setTimeout(() => {
-    terminal.destroy();
-    console.log("Terminal Destroyed!!")
-}, 1000)
-
-setTimeout(() => {
-        runtime.destroy();
-    }, 1500)
+terminal.write("ls\n");

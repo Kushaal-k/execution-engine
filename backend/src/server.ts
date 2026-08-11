@@ -8,6 +8,10 @@ import { ResponseModel } from "./models/response.model.js";
 import { Server } from "socket.io";
 import { createServer } from "node:http";
 import { QueueEvents, Queue } from "bullmq";
+import { terminalHandler } from "./socket/terminalHandler.js";
+import { RuntimeManager } from "./runtime/runtime-manager.js";
+import { TerminalManager } from "./runtime/terminal-manager.js";
+import RuntimeService from "./runtime/workspaceRuntimeService.js";
 
 export const connection = {
     host: 'localhost',
@@ -31,12 +35,26 @@ export const io = new Server(httpServer, {
     }
 });
 
+const runtimeManager = new RuntimeManager();
+const terminalManager = new TerminalManager();
+
+const runtimeService = new RuntimeService(
+    runtimeManager,
+    terminalManager
+);
+
 //BullMQ queue and events for jobs
 const executionQueue = new Queue("execution-queue", { connection })
 const queueEvents = new QueueEvents("execution-queue", { connection })
 
 io.on("connection", (socket) => {
     console.log("Connected: ", socket.id);
+
+    terminalHandler(
+        socket,
+        runtimeService,
+        terminalManager
+    );
 })
 
 app.post('/api/response', async (req: Request<{}, {}, IInputCodeRequest>, res: Response) => {
