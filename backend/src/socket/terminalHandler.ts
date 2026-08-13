@@ -4,27 +4,80 @@ import { TerminalManager } from "../runtime/terminal-manager.js";
 
 export function terminalHandler(socket: Socket, runtimeService: RuntimeService, terminalManager: TerminalManager) {
 
-    socket.on('terminal:open', async (workspaceId: string, terminalId: string, image: string) => {
-        const terminal = await runtimeService.createTerminal(workspaceId, terminalId, image);
+    const terminals = new Set<string>();
 
-        terminal.setOutputHandler((output) => {
-            socket.emit('terminal:output', {terminalId, output});
-        })
+    function isOwner(terminalId: string): boolean {
+        if(terminals.has(terminalId)) {
+            return true;
+        }
+        return false;
+    }
 
-        await terminal.start();
+    socket.on('terminal:open', async (workspaceId: string, terminalId: string, language: string) => {
+        try {
+            const terminal = await runtimeService.createTerminal(workspaceId, terminalId, language);
+            
+            terminal.setOutputHandler((output) => {
+                console.log("SOCKET OUTPUT:", output);
+                socket.emit('terminal:output', {terminalId, output});
+            })
+
+            await terminal.start();
+
+            socket.emit('terminal:opened', {terminalId});
+            terminals.add(terminalId);
+        }
+        catch (error) {
+            socket.emit('terminal:error', {
+                terminalId,
+                message: error instanceof Error ? error.message : 'Failed to open terminal'
+            });
+        }
     })
 
     socket.on('terminal:input', (terminalId: string, input: string) => {
-        const terminal = terminalManager.get(terminalId);
+        if(isOwner(terminalId)) {
+            const terminal = terminalManager.get(terminalId);
 
-        terminal?.write(input);
+            terminal?.write(input);
+        }
+        else {
+            socket.emit('terminal:error', {
+                terminalId,
+                message: "Terminal Not Found!!"
+            })
+        }
     })
 
     socket.on('terminal:stop', async (terminalId: string) => {
-        await terminalManager.stop(terminalId);
+        if(isOwner(terminalId)) {
+            await terminalManager.stop(terminalId);
+        }
+        else {
+            socket.emit('terminal:error', {
+                terminalId,
+                message: "Terminal Not Found!!"
+            })
+        }
     })
 
     socket.on('terminal:destroy', async (terminalId: string) => {
-        await terminalManager.destroy(terminalId);
+        if(isOwner(terminalId)) {
+            await terminalManager.destroy(terminalId);
+            terminals.delete(terminalId);
+        }
+        else {
+            socket.emit('terminal:error', {
+                terminalId,
+                message: "Terminal Not Found!!"
+            })
+        }
+    })
+
+    socket.on('disconnect', async () => {
+        for (const terminalId of terminals) {
+            await terminalManager.destroy(terminalId);
+        }
+        terminals.clear();
     })
 }   
