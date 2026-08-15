@@ -3,6 +3,7 @@ import Topbar from "./Topbar";
 import OutputArea from "./OutputArea";
 import { socket } from "../api/socket.js";
 import IDE from "./IDE";
+import TerminalView from "./TerminalView.js";
 
 export type Status = "Queued" | "Pending" | "Completed" | "Failed";
 
@@ -129,6 +130,7 @@ function InputCode() {
                 setStdin={setStdin}
                 onClearOutput={handleClearOutput}
             />
+            <TerminalView/>
         </div>
     );
 
