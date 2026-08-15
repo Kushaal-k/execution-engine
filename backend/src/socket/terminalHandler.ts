@@ -18,7 +18,6 @@ export function terminalHandler(socket: Socket, runtimeService: RuntimeService, 
             const terminal = await runtimeService.createTerminal(workspaceId, terminalId, language);
             
             terminal.setOutputHandler((output) => {
-                console.log("SOCKET OUTPUT:", output);
                 socket.emit('terminal:output', {terminalId, output});
             })
 

@@ -1,61 +1,63 @@
-import { useEffect, useState } from "react";
+import { useEffect } from "react";
 import type { MutableRefObject } from "react";
 import * as monaco from "monaco-editor";
-import { socket2 } from "../api/socket";
+import { collabSocket } from "../api/socket";
 import type { PresenceUpdate } from "@execution-engine/shared";
 import { createRemoteDecoration, removeUserStyles } from "../utils/monacoDecorations";
+import { useUserStore } from "../store/userStore";
 
 export function useRemotePresence(
-    editor: monaco.editor.IStandaloneCodeEditor | null,
-    decorationsRef: MutableRefObject<Map<string, monaco.editor.IEditorDecorationsCollection>>,
+  editor: monaco.editor.IStandaloneCodeEditor | null,
+  decorationsRef: MutableRefObject<Map<string, monaco.editor.IEditorDecorationsCollection>>
 ) {
-    const [ activeUsers, setActiveUsers ] = useState<Map<string, string>>(new Map());
+  const activeUsers = useUserStore((s) => s.activeUsers);
+  const setUserPresence = useUserStore((s) => s.setUserPresence);
+  const removeUserPresence = useUserStore((s) => s.removeUserPresence);
 
-    useEffect(() => {
-        if(!editor) return;
+  useEffect(() => {
+    if (!editor || !decorationsRef.current) return;
 
-        const handlePresence = (update: PresenceUpdate) => {
-            if(update.userId == socket2.id) return;
+    const handlePresence = (update: PresenceUpdate) => {
+      if (!update || !update.userId || update.userId === collabSocket.id) return;
 
-            setActiveUsers(prev => {
-                const next = new Map(prev);
-                next.set(update.userId, update.user.username || "Anonymous");
-                return next;
-            })
+      const userName = update.user?.username || "Anonymous";
+      setUserPresence(update.userId, userName);
 
-            let collection = decorationsRef.current.get(update.userId);
-            if(!collection) {
-                collection = editor.createDecorationsCollection();
-                decorationsRef.current.set(update.userId, collection);
-            }
+      if (!update.presence) return;
 
-            collection.set(createRemoteDecoration(update));
-        };
+      let collection = decorationsRef.current.get(update.userId);
+      if (!collection) {
+        collection = editor.createDecorationsCollection();
+        decorationsRef.current.set(update.userId, collection);
+      }
 
-        const handleUserLeft = (userId: string) => {
-            const collection = decorationsRef.current.get(userId);
-            if(collection) {
-                collection.clear();
-                decorationsRef.current.delete(userId);
-            }
+      try {
+        collection.set(createRemoteDecoration(update));
+      } catch (err) {
+        console.warn("Failed to render remote decoration:", err);
+      }
+    };
 
-            setActiveUsers(prev => {
-                const next = new Map(prev);
-                next.delete(userId);
-                return next;
-            });
+    const handleUserLeft = (userId: string) => {
+      if (!userId) return;
+      const collection = decorationsRef.current.get(userId);
+      if (collection) {
+        collection.clear();
+        decorationsRef.current.delete(userId);
+      }
 
-            removeUserStyles(userId);
-        }
+      removeUserPresence(userId);
+      removeUserStyles(userId);
+    };
 
-        socket2.on("presence-update", handlePresence);
-        socket2.on("user-left", handleUserLeft);
+    collabSocket.on("presence-update", handlePresence);
+    collabSocket.on("user-left", handleUserLeft);
 
-        return () => {
-            socket2.off("presence-update", handlePresence);
-            socket2.off("user-left", handleUserLeft);
-        }
-    }, [editor, decorationsRef])
+    return () => {
+      collabSocket.off("presence-update", handlePresence);
+      collabSocket.off("user-left", handleUserLeft);
+    };
+  }, [editor, decorationsRef, setUserPresence, removeUserPresence]);
 
-    return { activeUsers };
+  return { activeUsers };
 }

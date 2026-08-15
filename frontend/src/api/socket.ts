@@ -1,8 +1,15 @@
-import { io } from "socket.io-client";
+import { io, Socket } from "socket.io-client";
 import type { ServerToClientEvents, ClientToServerEvents } from "@execution-engine/shared";
-import type { Socket } from "socket.io-client";
+import { ENV } from "../config/env";
 
-const socket2: Socket<ServerToClientEvents, ClientToServerEvents> = io("http://localhost:3000");
-const socket = io("http://localhost:5000");
+export const collabSocket: Socket<ServerToClientEvents, ClientToServerEvents> = io(ENV.COLLAB_SOCKET_URL, {
+  autoConnect: true,
+});
 
-export {socket, socket2};
+export const executionSocket = io(ENV.EXECUTION_API_URL, {
+  autoConnect: true,
+});
+
+// Backwards compatibility aliases
+export const socket2 = collabSocket;
+export const socket = executionSocket;
