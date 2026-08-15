@@ -29,3 +29,16 @@ export interface WorkspaceSnapshot {
     folders: FolderMetadata[];
     metadata: WorkspaceMetadata;
 }
+
+export interface WorkspaceFilePayload {
+  path: string;
+  content: string;
+}
+
+export interface IWorkspaceExecutionRequest {
+  workspaceId: string;
+  entrypoint: string; // e.g. "src/index.js" (usually the activeFile's resolved path)
+  language: "javascript" | "python" | "cpp";
+  files: WorkspaceFilePayload[];
+  stdin?: string;
+}

@@ -4,6 +4,7 @@ import { collabSocket } from "../api/socket";
 import type { WorkspaceSnapshot } from "@execution-engine/shared";
 import { useWorkspaceStore } from "../store/workspaceStore";
 import { useUserStore } from "../store/userStore";
+import { useTerminalStore } from "../store/terminalStore";
 
 export function useYjsSync() {
   const doc = useWorkspaceStore((s) => s.doc);
@@ -14,15 +15,25 @@ export function useYjsSync() {
   useEffect(() => {
     collabSocket.emit("join-room", roomId, username);
 
+    let syncDebounceTimer: ReturnType<typeof setTimeout> | null = null;
+    const triggerDebouncedSync = () => {
+      if (syncDebounceTimer) clearTimeout(syncDebounceTimer);
+      syncDebounceTimer = setTimeout(() => {
+        useTerminalStore.getState().syncWorkspace(roomId);
+      }, 500);
+    };
+
     const handleSync = (workspaceSnapshot: WorkspaceSnapshot) => {
       const update = new Uint8Array(workspaceSnapshot.state);
       setWorkspace(workspaceSnapshot.files, workspaceSnapshot.folders, workspaceSnapshot.metadata);
       Y.applyUpdate(doc, update);
+      triggerDebouncedSync();
     };
 
     const handleRemoteUpdate = (state: Uint8Array | ArrayBuffer) => {
       const update = state instanceof Uint8Array ? state : new Uint8Array(state);
       Y.applyUpdate(doc, update);
+      triggerDebouncedSync();
     };
 
     collabSocket.on("sync", handleSync);
@@ -30,10 +41,12 @@ export function useYjsSync() {
 
     const handleUpdate = (update: Uint8Array) => {
       collabSocket.emit("update", update);
+      triggerDebouncedSync();
     };
     doc.on("update", handleUpdate);
 
     return () => {
+      if (syncDebounceTimer) clearTimeout(syncDebounceTimer);
       doc.off("update", handleUpdate);
       collabSocket.off("sync", handleSync);
       collabSocket.off("update", handleRemoteUpdate);

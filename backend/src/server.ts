@@ -40,7 +40,7 @@ const terminalManager = new TerminalManager();
 
 const runtimeService = new RuntimeService(
     runtimeManager,
-    terminalManager
+    terminalManager,
 );
 
 //BullMQ queue and events for jobs
@@ -53,7 +53,8 @@ io.on("connection", (socket) => {
     terminalHandler(
         socket,
         runtimeService,
-        terminalManager
+        terminalManager,
+        runtimeManager
     );
 })
 

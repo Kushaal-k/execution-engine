@@ -49,6 +49,9 @@ export function BottomPanel() {
     if (isCollapsed) {
       setIsCollapsed(false);
     }
+    if (tab === "terminal") {
+      useTerminalStore.getState().syncWorkspace(roomId);
+    }
   };
 
   const handleDestroyTerminal = () => {

@@ -9,6 +9,8 @@ export const terminalEvents = {
     executionSocket.emit("terminal:stop", terminalId),
   destroyTerminal: (terminalId: string) =>
     executionSocket.emit("terminal:destroy", terminalId),
+  syncWorkspaceFiles: (workspaceId: string, files: Array<{ path: string; content: string }>) =>
+    executionSocket.emit("workspace:sync-files", { workspaceId, files }),
 };
 
 export const terminalListeners = {

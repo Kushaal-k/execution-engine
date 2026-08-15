@@ -1,8 +1,9 @@
 import type { Socket } from "socket.io";
 import RuntimeService from "../runtime/workspaceRuntimeService.js"
 import { TerminalManager } from "../runtime/terminal-manager.js";
+import { RuntimeManager } from "../runtime/runtime-manager.js";
 
-export function terminalHandler(socket: Socket, runtimeService: RuntimeService, terminalManager: TerminalManager) {
+export function terminalHandler(socket: Socket, runtimeService: RuntimeService, terminalManager: TerminalManager, runtimeManager: RuntimeManager) {
 
     const terminals = new Set<string>();
 
@@ -69,6 +70,23 @@ export function terminalHandler(socket: Socket, runtimeService: RuntimeService, 
             socket.emit('terminal:error', {
                 terminalId,
                 message: "Terminal Not Found!!"
+            })
+        }
+    })
+
+    socket.on('workspace:sync-files', async (data: { 
+        workspaceId: string,
+        files: Array<{ path: string, content: string }>
+    }) => {
+        try {
+            const runtime = runtimeManager.get(data.workspaceId);
+            if (runtime && runtime.getContainer()) {
+                await runtime.syncFiles(data.files);
+                socket.emit('workspace:synced', { workspaceId: data.workspaceId });
+            }
+        } catch (error) {
+            socket.emit('terminal:error', {
+                message: error instanceof Error ? error.message : 'Failed to sync workspace files'
             })
         }
     })

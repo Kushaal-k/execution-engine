@@ -1,5 +1,6 @@
 import { create } from "zustand";
 import { terminalEvents } from "../api/terminalEvents";
+import { getWorkspaceFilesPayload, useWorkspaceStore } from "./workspaceStore";
 
 export interface TerminalSession {
   id: string;
@@ -17,6 +18,7 @@ interface TerminalState {
   destroyTerminal: (terminalId?: string) => void;
   setActiveTerminal: (terminalId: string) => void;
   sendInput: (input: string, terminalId?: string) => void;
+  syncWorkspace: (workspaceId: string) => void;
 }
 
 export const useTerminalStore = create<TerminalState>((set, get) => ({
@@ -30,6 +32,9 @@ export const useTerminalStore = create<TerminalState>((set, get) => ({
     const newSession: TerminalSession = { id, name, language: language.toLowerCase() };
 
     terminalEvents.openTerminal(workspaceId, id, language.toLowerCase());
+
+    // Sync all workspace files into the container volume
+    get().syncWorkspace(workspaceId);
 
     set((state) => ({
       terminals: [...state.terminals, newSession],
@@ -72,6 +77,18 @@ export const useTerminalStore = create<TerminalState>((set, get) => ({
     const targetId = terminalId || get().activeTerminalId;
     if (targetId) {
       terminalEvents.sendInputTerminal(targetId, input);
+    }
+  },
+
+  syncWorkspace: (workspaceId: string) => {
+    try {
+      const { files, folders, doc } = useWorkspaceStore.getState();
+      const payload = getWorkspaceFilesPayload(files, folders, doc);
+      if (payload.length > 0) {
+        terminalEvents.syncWorkspaceFiles(workspaceId, payload);
+      }
+    } catch (err) {
+      console.warn("Failed to sync workspace files to terminal:", err);
     }
   },
 }));

@@ -30,6 +30,7 @@ export class TerminalSession {
 
         const exec = await container.exec({
             Cmd: ["/bin/bash"],
+            User: "1000",
             AttachStdin: true,
             AttachStderr: true,
             AttachStdout: true,

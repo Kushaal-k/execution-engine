@@ -2,6 +2,7 @@ import { create } from "zustand";
 import * as Y from "yjs";
 import type { FileMetadata, FolderMetadata, WorkspaceMetadata } from "@execution-engine/shared";
 import { workspaceEvents } from "../api/workspaceEvents";
+import { resolveFilePaths } from "../utils/workspacePaths";
 
 interface WorkspaceState {
   files: FileMetadata[];
@@ -23,6 +24,20 @@ interface WorkspaceState {
   createFolder: (name: string, parentFolderId?: string | null) => void;
   renameFolder: (folderId: string, newName: string) => void;
   deleteFolder: (folderId: string) => void;
+}
+
+// Inside executionStore or workspaceStore
+export function getWorkspaceFilesPayload(
+  files: FileMetadata[],
+  folders: FolderMetadata[],
+  doc: Y.Doc
+) {
+  const pathMap = resolveFilePaths(files, folders);
+
+  return files.map((file) => ({
+    path: pathMap.get(file.id) || file.name,
+    content: doc.getText(file.id).toString(),
+  }));
 }
 
 export const useWorkspaceStore = create<WorkspaceState>((set, get) => ({

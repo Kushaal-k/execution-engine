@@ -1,6 +1,7 @@
 import {docker} from "../execution.js";
 import { type Container } from "dockerode";
 import { ensureImageExists } from "../execution.js";
+import tar from "tar-stream";
 
 type RuntimeState = "ready" | "idle" | "stopped" | "destroyed";
 
@@ -18,6 +19,11 @@ export class Runtime {
     }
 
     async start(image: string): Promise<void> {
+        //Create volume in docker for files workspace
+        const volumeName = `engine_ws_${this.workspaceId}`;
+
+        await docker.createVolume({ Name: volumeName });
+
         //create container
         await ensureImageExists(image);
 
@@ -30,14 +36,14 @@ export class Runtime {
         }
 
         const options = {
-            cwd: "/home/kushaal/projects/Execution-Engine/backend/temp:/app",
+            cwd: `${volumeName}:/app:rw`,
             timeout: 10000,
         }
 
         const container = await docker.createContainer({
             Image: image,
-            User: "1000",
             WorkingDir: '/app',
+            Cmd: ['sh', '-c', 'chown -R 1000:1000 /app 2>/dev/null; chmod 777 /app 2>/dev/null; tail -f /dev/null'],
             HostConfig: {
                 Binds: [`${options.cwd}`],
                 Runtime: config.runtime,
@@ -48,7 +54,6 @@ export class Runtime {
             StopTimeout: options.timeout,
             AttachStdin: true,
             OpenStdin: true,
-            StdinOnce: true,
         });
 
         //start container
@@ -84,10 +89,28 @@ export class Runtime {
 
         this.container = null;
         this.state = "destroyed";
+    }
 
-        const exec = await container.exec({});
+    async syncFiles(files: Array<{ path: string; content: string }>): Promise<void> {
+        if (!this.container) return;
 
-        exec.start({})
+        const pack = tar.pack();
+
+        for (const file of files) {
+            const safePath = file.path.replace(/^\/+/, "");
+            pack.entry({ 
+                name: safePath, 
+                mode: 0o644, 
+                uid: 1000, 
+                gid: 1000, 
+                uname: "node", 
+                gname: "node" 
+            }, file.content);
+        }
+
+        pack.finalize();
+
+        await this.container.putArchive(pack, { path: "/app" });
     }
 
     getContainer(): Container | null {
