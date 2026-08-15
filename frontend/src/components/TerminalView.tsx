@@ -1,75 +1,54 @@
 import { useEffect, useRef } from "react";
-import { Terminal } from "@xterm/xterm";
-import { terminalListeners } from "../api/terminalEvents";
 import { useWorkspaceStore } from "../store/workspaceStore";
 import { useExecutionStore } from "../store/executionStore";
 import { useTerminalStore } from "../store/terminalStore";
-import "@xterm/xterm/css/xterm.css";
+import TerminalInstance from "./TerminalInstance";
 
 export function TerminalView() {
-  const terminalRef = useRef<HTMLDivElement>(null);
   const roomId = useWorkspaceStore((s) => s.roomId);
   const language = useExecutionStore((s) => s.language);
-  const openTerminal = useTerminalStore((s) => s.openTerminal);
-  const sendInput = useTerminalStore((s) => s.sendInput);
 
+  const terminals = useTerminalStore((s) => s.terminals);
+  const activeTerminalId = useTerminalStore((s) => s.activeTerminalId);
+  const createTerminal = useTerminalStore((s) => s.createTerminal);
+
+  const hasInitializedRef = useRef(false);
+
+  // Auto-create initial terminal only on first mount
   useEffect(() => {
-    if (!terminalRef.current) return;
-
-    const terminal = new Terminal({
-      theme: {
-        background: "#09090b",
-        foreground: "#f4f4f5",
-        cursor: "#a1a1aa",
-        selectionBackground: "#3f3f4680",
-        black: "#18181b",
-        red: "#f43f5e",
-        green: "#10b981",
-        yellow: "#f59e0b",
-        blue: "#3b82f6",
-        magenta: "#d946ef",
-        cyan: "#06b6d4",
-        white: "#f4f4f5",
-      },
-      fontSize: 12,
-      fontFamily: "ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace",
-      cursorBlink: true,
-      convertEol: true,
-    });
-
-    terminal.open(terminalRef.current);
-    terminal.focus();
-
-    // Open terminal session via terminalStore
-    const activeTerminalId = openTerminal(roomId, language.toLowerCase());
-
-    const onDataDispose = terminal.onData((input) => {
-      sendInput(input);
-    });
-
-    const unsubscribeOutput = terminalListeners.onOutput((data) => {
-      if (data.terminalId === activeTerminalId) {
-        terminal.write(data.output);
+    if (!hasInitializedRef.current) {
+      hasInitializedRef.current = true;
+      if (terminals.length === 0) {
+        createTerminal(roomId, language);
       }
-    });
+    }
+  }, [roomId, language, createTerminal, terminals.length]);
 
-    const unsubscribeError = terminalListeners.onError((data) => {
-      if (data.terminalId === activeTerminalId) {
-        terminal.write(`\r\n\x1b[31m[Error]: ${data.message}\x1b[0m\r\n`);
-      }
-    });
-
-    return () => {
-      onDataDispose.dispose();
-      unsubscribeOutput();
-      unsubscribeError();
-      terminal.dispose();
-    };
-  }, [roomId, language, openTerminal, sendInput]);
+  const handleNewTerminal = () => {
+    createTerminal(roomId, language);
+  };
 
   return (
-    <div className="h-full w-full bg-zinc-950 p-2 overflow-hidden">
-      <div ref={terminalRef} tabIndex={0} className="h-full w-full outline-none" />
+    <div className="h-full w-full bg-zinc-950 p-2 relative overflow-hidden select-text">
+      {terminals.length === 0 ? (
+        <div className="h-full w-full flex flex-col items-center justify-center text-zinc-600 text-xs font-mono select-none">
+          <span>No active terminal sessions</span>
+          <button
+            onClick={handleNewTerminal}
+            className="mt-2 px-2.5 py-1 rounded bg-zinc-900 hover:bg-zinc-800 text-zinc-300 text-[11px] border border-zinc-800 transition-colors cursor-pointer"
+          >
+            + Open Terminal
+          </button>
+        </div>
+      ) : (
+        terminals.map((term) => (
+          <TerminalInstance
+            key={term.id}
+            terminalId={term.id}
+            isActive={term.id === activeTerminalId}
+          />
+        ))
+      )}
     </div>
   );
 }

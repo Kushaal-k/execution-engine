@@ -19,6 +19,28 @@
   }
 }
 
+/* Xterm custom scrollbar & viewport alignment */
+.xterm .xterm-viewport {
+  overflow-y: auto !important;
+}
+
+.xterm .xterm-viewport::-webkit-scrollbar {
+  width: 6px;
+}
+
+.xterm .xterm-viewport::-webkit-scrollbar-thumb {
+  background-color: #27272a;
+  border-radius: 3px;
+}
+
+.xterm .xterm-viewport::-webkit-scrollbar-thumb:hover {
+  background-color: #3f3f46;
+}
+
+.xterm .xterm-viewport::-webkit-scrollbar-track {
+  background-color: #09090b;
+}
+
 body {
   margin: 0;
   padding: 0;
@@ -28,4 +50,3 @@ body {
   overflow: hidden;
   -webkit-font-smoothing: antialiased;
 }
-
