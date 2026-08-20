@@ -44,5 +44,25 @@ export function registerWorkspaceHandlers(socket: TypedSocket, io: TypedServer, 
 
     socket.on('rename-folder', (folderId: string, newFolderName: string) => {
         withWorkspace(ws => ws.renameFolder(folderId, newFolderName));
-    })
+    });
+
+    // Container Filesystem Mutation Events (from backend)
+    socket.on('workspace:fs-event', (event) => {
+        const roomId = event.roomId || socket.data.roomId;
+        if (!roomId) return;
+
+        const room = roomManager.getRoom(roomId);
+        if (!room) return;
+
+        const workspace = room.getWorkspace();
+        if (event.type === "add") {
+            workspace.createFileByPath(event.path, event.content || "");
+        } else if (event.type === "change") {
+            workspace.updateFileByPath(event.path, event.content || "");
+        } else if (event.type === "unlink") {
+            workspace.deleteFileByPath(event.path);
+        }
+
+        io.to(roomId).emit("sync", workspace.getSnapshot());
+    });
 }

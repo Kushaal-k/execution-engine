@@ -42,3 +42,10 @@ export interface IWorkspaceExecutionRequest {
   files: WorkspaceFilePayload[];
   stdin?: string;
 }
+
+export interface IWorkspaceFsEvent {
+  type: "add" | "change" | "unlink";
+  path: string;
+  content?: string;
+}
+

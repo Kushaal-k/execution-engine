@@ -17,6 +17,7 @@ export interface ClientToServerEvents extends WorkspaceEvents {
     "presence-update": (presence: Presence) => void;
     "user-left": (userId: string) => void;
     "submit-code": (request: IExecutionRequest) => void;
+    "workspace:fs-event": (event: { roomId: string; type: "add" | "change" | "unlink"; path: string; content?: string }) => void;
 }
 
 export interface ServerToClientEvents {

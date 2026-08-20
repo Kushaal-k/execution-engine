@@ -251,6 +251,103 @@ export class Workspace {
         return true;
     }
 
+    findFileByPath(relPath: string): FileMetadata | undefined {
+        const normalized = relPath.replace(/\\/g, "/").replace(/^\/+/, "");
+        const segments = normalized.split("/");
+        const fileName = segments.pop();
+        if (!fileName) return undefined;
+
+        let currentParentId: string | null = null;
+        for (const folderName of segments) {
+            const folder = Array.from(this.folders.values()).find(
+                f => f.name === folderName && f.parentFolderId === currentParentId
+            );
+            if (!folder) return undefined;
+            currentParentId = folder.id;
+        }
+
+        return Array.from(this.files.values()).find(
+            f => f.name === fileName && f.parentFolderId === currentParentId
+        );
+    }
+
+    createFileByPath(relPath: string, content: string = "", language?: string) {
+        const normalized = relPath.replace(/\\/g, "/").replace(/^\/+/, "");
+        const segments = normalized.split("/");
+        const fileName = segments.pop();
+        if (!fileName) return null;
+
+        let currentParentId: string | null = null;
+        for (const folderName of segments) {
+            let folder = Array.from(this.folders.values()).find(
+                f => f.name === folderName && f.parentFolderId === currentParentId
+            );
+            if (!folder) {
+                const folderId = crypto.randomUUID();
+                folder = {
+                    id: folderId,
+                    name: folderName,
+                    parentFolderId: currentParentId
+                };
+                this.folders.set(folderId, folder);
+            }
+            currentParentId = folder.id;
+        }
+
+        const existingFile = Array.from(this.files.values()).find(
+            f => f.name === fileName && f.parentFolderId === currentParentId
+        );
+
+        if (existingFile) {
+            if (content) {
+                const ytext = this.doc.getText(existingFile.id);
+                if (ytext.toString() !== content) {
+                    ytext.delete(0, ytext.length);
+                    ytext.insert(0, content);
+                }
+            }
+            return existingFile.id;
+        }
+
+        const fileId = crypto.randomUUID();
+        const fileData: FileMetadata = {
+            id: fileId,
+            name: fileName,
+            language: language || detectLanguage(fileName),
+            parentFolderId: currentParentId
+        };
+
+        this.files.set(fileId, fileData);
+        const ytext = this.doc.getText(fileId);
+        if (content) {
+            ytext.insert(0, content);
+        }
+
+        return fileId;
+    }
+
+    updateFileByPath(relPath: string, content: string): boolean {
+        const file = this.findFileByPath(relPath);
+        if (!file) {
+            this.createFileByPath(relPath, content);
+            return true;
+        }
+
+        const ytext = this.doc.getText(file.id);
+        if (ytext.toString() !== content) {
+            ytext.delete(0, ytext.length);
+            ytext.insert(0, content);
+        }
+        return true;
+    }
+
+    deleteFileByPath(relPath: string): boolean {
+        const file = this.findFileByPath(relPath);
+        if (!file) return false;
+        this.deleteFile(file.id);
+        return true;
+    }
+
     getFolder(folderId: string) {
         return this.folders.get(folderId);
     }
@@ -272,3 +369,18 @@ export class Workspace {
         return Y.encodeStateAsUpdate(this.doc);
     }
 };
+
+export function detectLanguage(fileName: string): string {
+    const ext = fileName.split(".").pop()?.toLowerCase();
+    switch (ext) {
+        case "js": case "jsx": case "mjs": case "cjs": return "javascript";
+        case "ts": case "tsx": return "typescript";
+        case "py": return "python";
+        case "cpp": case "cc": case "cxx": case "h": case "hpp": return "cpp";
+        case "json": return "json";
+        case "html": return "html";
+        case "css": return "css";
+        case "md": return "markdown";
+        default: return "plaintext";
+    }
+}

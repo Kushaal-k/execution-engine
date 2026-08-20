@@ -5,7 +5,7 @@ import { registerLifecycleHandlers } from './lifecycleHandlers.js';
 import { registerPresenceHandlers } from './presenceHandlers.js';
 import { registerWorkspaceHandlers } from './workspaceHandlers.js';
 
-const roomManager = new RoomManager();
+export const roomManager = new RoomManager();
 
 export function registerSocketHandlers(io: Server<ClientToServerEvents, ServerToClientEvents>) {
     io.on("connection", (socket) => {
